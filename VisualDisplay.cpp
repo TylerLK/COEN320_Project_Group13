@@ -4,6 +4,6 @@ using namespace std;
 
 int main()
 {
-    cout << "Welcome to our COEN320 project" << endl;
+    cout << "This is the Visual Display Subsystem" << endl;
     return 0;
 }

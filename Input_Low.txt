@@ -1,0 +1,1 @@
+This is the input file that will contain a scenario with a low amount of air congestion.
