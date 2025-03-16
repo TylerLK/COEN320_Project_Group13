@@ -2,6 +2,10 @@
 
 using namespace std;
 
+/*NOTE: All the aircrafts will be implemented as PERIODIC TASKS.
+    The aircraft will update its position every second.
+    Aircraft responds to radar requests. */
+
 class Aircraft
 {
 public:
@@ -99,12 +103,18 @@ public:
         speedZ = sZ;
     }
 
-    // This method updatesthe position of the aircraft based on the speed of the aircraft in the different directions.
+    // This method updates the position of the aircraft based on the speed of the aircraft in the different directions.
     void updatePosition(double timeElapsed)
     {
         positionX = positionX + (speedX * timeElapsed);
         positionY = positionY + (speedY * timeElapsed);
         positionZ = positionZ + (speedZ * timeElapsed);
+    }
+
+    // This method responds to radar requests.
+    string radarRequestResponse()
+    {
+        return aircraftID + " " + to_string(this->getPositionX()) + " " + to_string(this->getPositionY()) + " " + to_string(this->getPositionZ()) + " " + to_string(this->getSpeedX()) + " " + to_string(this->getSpeedY()) + " " + to_string(this->getSpeedZ());
     }
 
 private:
