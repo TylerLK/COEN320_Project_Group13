@@ -188,7 +188,8 @@ void augmentedInformationRequest(fstream &f)
 {
     // Have the Operator enter the ID of the desired aricraft.
     int aircraftID = 0;
-    cout << "Which aircraft should change its speed? ";
+    cout << "Which aircraft's augmented information would you like? " << endl
+         << "Enter the desired aircraft's ID: ";
     cin >> aircraftID;
 
     // Log the augmented information request command in "Logs.txt"

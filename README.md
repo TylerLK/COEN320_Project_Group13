@@ -21,3 +21,5 @@ Marco Sicolo (*40244003*)
 ## 3. The Implementation
 
 The project will be implemented as a real-time operating system (*RTOS*).  Additionally, it must be run on the QNX Momentics IDE with a Virtual Box virtual machine.
+
+## 4. Installation Instructions
