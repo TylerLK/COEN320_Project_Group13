@@ -10,7 +10,7 @@ class Aircraft
 {
 public:
     // Constructor
-    Aircraft(string t, string id, double posX, double posY, double posZ, double sX, double sY, double sZ)
+    Aircraft(int t, string id, double posX, double posY, double posZ, double sX, double sY, double sZ)
     {
         time = t;
         aircraftID = id;
@@ -23,12 +23,12 @@ public:
     }
 
     // Getters and Setters
-    string getTime()
+    int getTime()
     {
         return time;
     }
 
-    void setTime(string t)
+    void setTime(int t)
     {
         time = t;
     }
@@ -119,7 +119,7 @@ public:
 
 private:
     // Attributes
-    string time;       // The time at which the aircraft enters the airspace.
+    int time;       // The time at which the aircraft enters the airspace.
     string aircraftID; // The unique ID of the aircraft.
     double positionX;  // The position of the aircraft along the x-axis.
     double positionY;  // The position of the aircraft along the y-axis.
