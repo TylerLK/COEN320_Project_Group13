@@ -1,1 +1,2 @@
-This is the input file that will contain a scenario with a fair amount of air congestion.
+ac101 20 30 40 20 30 40 50
+ac202 20 30 40 40 50 60 0
