@@ -10,6 +10,7 @@ int main()
     /* TODO:
         3. Compilation and execution of the other subsystems:
             - Adapt this to QNX OS.
+        4. Once in QNX, make sure a POSIX thread is created that will montior if the system should be terminated.
 
     */
 
