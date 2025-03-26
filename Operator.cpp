@@ -2,6 +2,7 @@
 #include <string>
 #include <fstream>
 #include <ctime>
+#include <limits>
 
 using namespace std;
 
@@ -120,10 +121,25 @@ void insertBanner(string title)
 // Request an aricraft to change its speed.
 void speedChangeRequest(fstream &f)
 {
-    // Have the Operator enter the ID of the desired aricraft.
     int aircraftID = 0;
-    cout << "Which aircraft should change its speed? ";
-    cin >> aircraftID;
+    // Have the Operator enter the ID of the desired aricraft.
+    cout << "Which aircraft's augmented information would you like? " << endl
+         << "Enter the desired aircraft's ID (i.e., an integer value between 00000000 and 99999999): ";
+    while (1)
+    {
+        cin >> aircraftID;
+
+        if ((!cin.fail()) && (aircraftID > 00000000) && (aircraftID < 99999999))
+        {
+            break;
+        }
+        else
+        {
+            cout << "Invalid input. Please enter a valid integer aircraft ID between 00000000 and 99999999." << endl;
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        }
+    }
 
     // Have the Operator enter the new speed of the desired aricraft.
     int newSpeedX = 0;
@@ -145,10 +161,25 @@ void speedChangeRequest(fstream &f)
 // Request an aricraft to change its altitude (Along the z-axis).
 void altitudeChangeRequest(fstream &f)
 {
-    // Have the Operator enter the ID of the desired aricraft.
     int aircraftID = 0;
-    cout << "Which aircraft should change its speed? ";
-    cin >> aircraftID;
+    // Have the Operator enter the ID of the desired aricraft.
+    cout << "Which aircraft's augmented information would you like? " << endl
+         << "Enter the desired aircraft's ID (i.e., an integer value between 00000000 and 99999999): ";
+    while (1)
+    {
+        cin >> aircraftID;
+
+        if ((!cin.fail()) && (aircraftID > 00000000) && (aircraftID < 99999999))
+        {
+            break;
+        }
+        else
+        {
+            cout << "Invalid input. Please enter a valid integer aircraft ID between 00000000 and 99999999." << endl;
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        }
+    }
 
     // Have the Operator enter the new altitude of the desired aricraft.
     int altitude = 0;
@@ -164,10 +195,25 @@ void altitudeChangeRequest(fstream &f)
 // Request an aricraft to change its position (Along the x-axis and y-axis).
 void positionChangeRequest(fstream &f)
 {
-    // Have the Operator enter the ID of the desired aricraft.
     int aircraftID = 0;
-    cout << "Which aircraft should change its speed? ";
-    cin >> aircraftID;
+    // Have the Operator enter the ID of the desired aricraft.
+    cout << "Which aircraft's augmented information would you like? " << endl
+         << "Enter the desired aircraft's ID (i.e., an integer value between 00000000 and 99999999): ";
+    while (1)
+    {
+        cin >> aircraftID;
+
+        if ((!cin.fail()) && (aircraftID > 00000000) && (aircraftID < 99999999))
+        {
+            break;
+        }
+        else
+        {
+            cout << "Invalid input. Please enter a valid integer aircraft ID between 00000000 and 99999999." << endl;
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        }
+    }
 
     // Have the Operator enter the new position of the desired aricraft.
     int newPositionX = 0;
@@ -186,11 +232,25 @@ void positionChangeRequest(fstream &f)
 // Request augmented information about an aricraft.
 void augmentedInformationRequest(fstream &f)
 {
-    // Have the Operator enter the ID of the desired aricraft.
     int aircraftID = 0;
+    // Have the Operator enter the ID of the desired aricraft.
     cout << "Which aircraft's augmented information would you like? " << endl
-         << "Enter the desired aircraft's ID: ";
-    cin >> aircraftID;
+         << "Enter the desired aircraft's ID (i.e., an integer value between 00000000 and 99999999): ";
+    while (1)
+    {
+        cin >> aircraftID;
+
+        if ((!cin.fail()) && (aircraftID > 00000000) && (aircraftID < 99999999))
+        {
+            break;
+        }
+        else
+        {
+            cout << "Invalid input. Please enter a valid integer aircraft ID between 00000000 and 99999999." << endl;
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        }
+    }
 
     // Log the augmented information request command in "Logs.txt"
     f << getCurrentTimestamp() << " " << "Augmented_Information" << " " << aircraftID << "\n";
@@ -208,7 +268,9 @@ bool terminateSystem()
         if (input == 'y')
         {
             cout << "The Operator Subsystem is terminating..." << endl;
-            /* TODO: Send a termination signal to the Launcher.cpp */
+            fstream systemTermination("Termination.txt");
+            systemTermination << "kill" << endl;
+            systemTermination.close();
             return true;
         }
         else if (input == 'n')
