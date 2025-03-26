@@ -3,17 +3,21 @@
 #include <ctime>
 #include <cstdlib>
 #include <vector>
+#include <fstream>
 #include <unistd.h>
 #include <cstring>
 #include <mutex>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <semaphore.h>
+//#include "Aircraft.h"
 
 using namespace std;
 
-#define shared_name "/aircraft_shm"
+#define shared_name "/radar_shm"
+#define sem_name "/radar_semaphore"
 int max_planes=10;
-
+const string filename = "Input_Medium.txt";
 time_t programStartTime;
 
 struct SharedAircraft {
@@ -23,12 +27,15 @@ struct SharedAircraft {
     int startTime;
 };
 
+
 int shm_fd;
 SharedAircraft* sharedAircraftList;
 
 mutex air_mutex;
+sem_t* sem_plane;
 
 void printData() {
+    sem_wait(sem_plane);
     lock_guard<mutex> lock(air_mutex);
     time_t currentTime = time(nullptr);
 
@@ -59,41 +66,32 @@ void printData() {
              << " | Z: " << aircraft.positionZ << endl;
     }
     cout << endl;
+    sem_post(sem_plane);
 }
 
-void getUserInputAircraft() {
-    int numAircrafts;
-
-    while (true) {
-        cout << "Enter number of aircrafts (Max " << max_planes << "): ";
-        cin >> numAircrafts;
-
-        if (numAircrafts > 0 && numAircrafts <= max_planes)
-            break;
-        else
-            cout << "Invalid input. Please enter between 1 and " << max_planes << endl;
+void loadAircraftFromFile() {
+    ifstream file(filename);
+    if (!file) {
+        cerr << "Error opening file: " << filename << endl;
+        exit(EXIT_FAILURE);
     }
 
-    for (int i = 0; i < numAircrafts; i++) {
-        SharedAircraft aircraft;
 
-        cout << "\nEnter Aircraft " << (i + 1) << " ID: ";
+    int i = 0;
+    while (file && i < max_planes) {
+        SharedAircraft aircraft;
         string id;
-        cin >> id;
+
+        file >> id >> aircraft.positionX >> aircraft.positionY >> aircraft.positionZ
+             >> aircraft.speedX >> aircraft.speedY >> aircraft.speedZ >> aircraft.startTime;
+
         strncpy(aircraft.aircraftID, id.c_str(), sizeof(aircraft.aircraftID) - 1);
         aircraft.aircraftID[sizeof(aircraft.aircraftID) - 1] = '\0';
 
-        cout << "Enter Initial Position (X Y Z): ";
-        cin >> aircraft.positionX >> aircraft.positionY >> aircraft.positionZ;
-
-        cout << "Enter Speed (X Y Z): ";
-        cin >> aircraft.speedX >> aircraft.speedY >> aircraft.speedZ;
-
-        cout << "Enter Start Time (seconds): ";
-        cin >> aircraft.startTime;
-
         sharedAircraftList[i] = aircraft;
+        i++;
     }
+    file.close();
 }
 
 
@@ -114,8 +112,7 @@ void initializeSharedMemory() {
         exit(EXIT_FAILURE);
     }
 
-    sharedAircraftList = (SharedAircraft*)mmap(0, max_planes * sizeof(SharedAircraft),
-                                               PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    sharedAircraftList = (SharedAircraft*)mmap(0, max_planes * sizeof(SharedAircraft),PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (sharedAircraftList == MAP_FAILED) {
         cerr << "Error mapping shared memory" << endl;
         exit(EXIT_FAILURE);
@@ -161,7 +158,7 @@ int main() {
 
 
     initializeSharedMemory();
-    getUserInputAircraft();
+    loadAircraftFromFile();
     programStartTime = time(nullptr);
     startTimer();
 
