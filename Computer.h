@@ -15,15 +15,28 @@
 #include <fcntl.h>     // For shm_open, O_CREAT, O_RDWR
 #include <unistd.h>    // For ftruncate
 #include <cstring>     // For memcpy
-#include "Aircraft.h"  // Include the Aircraft header file
+//#include "Aircraft.h"  // Include the Aircraft header file
 #include <sstream>
-
+#define shared_name "/radar_shm"
+#define sem_name "/radar_semaphore"
 using namespace std;
 using namespace std::chrono;
 
+mutex air_mutex;
+sem_t* sem_plane;
+
 const char *AIRCRAFT_SEMAPHORE_NAME = "/aircraft_semaphore";
 const char *ALERTS_SEMAPHORE_NAME = "/alerts_semaphore";
+struct SharedAircraft {
+    char aircraftID[10];
+    double positionX, positionY, positionZ;
+    double speedX, speedY, speedZ;
+    int startTime;
+};
 
+
+int shm_fdd;
+SharedAircraft* sharedAircraftList;
 struct Alert
 {
     double time;
@@ -88,16 +101,16 @@ public:
 
 private:
     vector<Aircraft> aircrafts = {
-        Aircraft("12:00", "A1", 1000, 2005, 3000, 100, 100, 0),
-        Aircraft("12:00", "A2", 4000, 5500, 3500, -100, -100, 0),
-        Aircraft("12:00", "A3", 5000, 5000, 3000, 5, 5, 0),
-        Aircraft("12:00", "A4", 1500, 2000, 3000, -5, -5, 0),
-        Aircraft("12:00", "A5", 7000, 4000, 5000, 15, 15, 0),
-        Aircraft("12:00", "A6", 8000, 4500, 5500, -15, -15, 0),
-        Aircraft("12:00", "A7", 9000, 5000, 6000, 20, 20, 0),
-        Aircraft("12:00", "A8", 10000, 5500, 6500, -20, -20, 0),
-        Aircraft("12:00", "A9", 11000, 6000, 7000, 25, 25, 0),
-        Aircraft("12:00", "A10", 12000, 6500, 7500, -25, -25, 0)};
+        Aircraft(100, "A1", 1000, 2005, 3000, 100, 100, 0),
+        Aircraft(50, "A2", 4000, 5500, 3500, -100, -100, 0),
+        Aircraft(80, "A3", 5000, 5000, 3000, 5, 5, 0),
+        Aircraft(40, "A4", 1500, 2000, 3000, -5, -5, 0),
+        Aircraft(20, "A5", 7000, 4000, 5000, 15, 15, 0),
+        Aircraft(20, "A6", 8000, 4500, 5500, -15, -15, 0),
+        Aircraft(40, "A7", 9000, 5000, 6000, 20, 20, 0),
+        Aircraft(30, "A8", 10000, 5500, 6500, -20, -20, 0),
+        Aircraft(40, "A9", 11000, 6000, 7000, 25, 25, 0),
+        Aircraft(0, "A10", 12000, 6500, 7500, -25, -25, 0)};
 
     priority_queue<Alert> alerts;
     mutex alertMutex;         // Mutex to protect access to the alerts queue
@@ -371,11 +384,7 @@ private:
                 string timestamp = ctime(&now);
                 timestamp.pop_back(); // Remove trailing newline
 
-                string data = "Timestamp: " + timestamp +
-                              ", Aircraft ID: " + aircraft.getAircraftID() +
-                              ", Position: (" + to_string(aircraft.getPositionX()) + ", " +
-                              to_string(aircraft.getPositionY()) + ", " +
-                              to_string(aircraft.getPositionZ()) + ")\n";
+                string data = "Timestamp: " + timestamp;
 
                 memcpy(mem, data.c_str(), data.size());
                 mem += data.size();
@@ -498,5 +507,51 @@ private:
         }
 
         sem_close(semaphore); // Close the semaphore
+    }
+
+public:
+
+    void printData() {
+    	cout << "Semaphore opened successfully." << endl;
+    	sem_plane=sem_open(sem_name, O_CREAT, 0777,1);
+    	if(sem_plane==SEM_FAILED){
+    		perror("Failed to open");
+    		exit(EXIT_FAILURE);
+    	}
+    	cout << "Semaphore opened successfully." << endl;
+
+        lock_guard<mutex> lock(air_mutex);
+
+shm_fdd=shm_open(shared_name,O_RDWR, 0777);
+if(shm_fdd==-1){
+	perror("failed");
+	sem_post(sem_plane);
+	exit(EXIT_FAILURE);
+}
+
+sharedAircraftList=(SharedAircraft*)mmap(0,sizeof(SharedAircraft)*10, PROT_READ|PROT_WRITE, MAP_SHARED, shm_fdd, 0);
+if(sharedAircraftList==MAP_FAILED){
+	perror("Failed to map");
+	sem_post(sem_plane);
+	exit(EXIT_FAILURE);
+}
+while(true){
+	 sem_wait(sem_plane);
+	 for (int i = 0; i < 8; i++) {
+            SharedAircraft& aircraft = sharedAircraftList[i];
+
+            cout << "ID: " << aircraft.aircraftID
+                 << " | X: " << aircraft.positionX
+                 << " | Y: " << aircraft.positionY
+                 << " | Z: " << aircraft.positionZ << endl;
+        }
+
+
+        close(shm_fdd);
+        sem_post(sem_plane);
+       sleep(1);
+}
+        cout << endl;
+
     }
 };
