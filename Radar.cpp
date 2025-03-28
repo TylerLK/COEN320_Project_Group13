@@ -10,9 +10,11 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <semaphore.h>
+#include <unistd.h>
 //#include "Aircraft.h"
 
 using namespace std;
+
 
 #define shared_name "/radar_shm"
 #define sem_name "/radar_semaphore"
@@ -101,7 +103,7 @@ void timerHandler(union sigval sv) {
 
 
 void initializeSharedMemory() {
-    shm_fd = shm_open(shared_name, O_CREAT | O_RDWR, 1234);
+    shm_fd = shm_open(shared_name, O_CREAT | O_RDWR, 0777);
     if (shm_fd == -1) {
         cerr << "Error creating shared memory" << endl;
         exit(EXIT_FAILURE);
@@ -156,7 +158,9 @@ void startTimer() {
 
 int main() {
 
-
+	char buffer[256];
+	getcwd(buffer, sizeof(buffer));  // Get current working directory
+	cout << "Current working directory: " << buffer << endl;
     initializeSharedMemory();
     loadAircraftFromFile();
     programStartTime = time(nullptr);
