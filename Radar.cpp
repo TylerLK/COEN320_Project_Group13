@@ -190,12 +190,12 @@ for (int i = 0; i < max_planes; i++) {
 void changeParameters(){ //function which reads shared memory between communications-radar to update requested aircraft speeds
 
 	sem_comms = sem_open(sem_comms_name, O_CREAT, 0777, 1);
-	        if (sem_plane == SEM_FAILED) {
+	        if (sem_comms == SEM_FAILED) {
 	            perror("Failed to open semaphore");
 	            exit(EXIT_FAILURE);
 	        }
 
-	int shm_fd_comms=shm_open(shared_comms_name,O_RDWR, 0777);
+	int shm_fd_comms=shm_open(shared_comms_name,O_CREAT|O_RDWR, 0777);
 	if(shm_fd_comms==-1){
 		perror("failed");
 		exit(EXIT_FAILURE);
