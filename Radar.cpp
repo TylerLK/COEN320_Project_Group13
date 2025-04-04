@@ -209,8 +209,7 @@ void changeParameters(){ //function which reads shared memory between communicat
 		close(shm_fd_comms);
 		exit(EXIT_FAILURE);
 	}
-cout<<"Communications shared memory recieved"<<endl;
-
+cout<<"Communications shared memory received"<<endl;
 sem_wait(sem_comms);
 lock_guard<mutex> lock(comms_mutex);
 
