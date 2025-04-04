@@ -231,8 +231,7 @@ temp.speedZ = aircraftComms.speedZ;
 aircrafting.push_back(temp);
 
 //aircrafting.emplace_back(aircraftComms.aircraftID, aircraftComms.speedX, aircraftComms.speedY, aircraftComms.speedZ);
- 	 changeSpeed(aircraftComms.aircraftID, aircraftComms.speedX, aircraftComms.speedY, aircraftComms.speedZ); //call changespeed fucntion for all requested aircrafts in shared memory
-
+ 	 changeSpeed(aircraftComms.aircraftID, aircraftComms.speedX, aircraftComms.speedY, aircraftComms.speedZ); //call changespeed function for all requested aircrafts in shared memory
 }
 	        close(shm_fd_comms);
 	        sem_post(sem_comms);
