@@ -641,8 +641,7 @@ private:
 //
 //    }
     void sendAircrafts() {
-        sem_wait(dataDisplaySemaphore); // Lock semaphore for aircraft data
-
+        sem_wait(sem_display); // Lock semaphore for aircraft data
         lock_guard<mutex> lock(aircraftsMutex); // Protect access to aircraft shared memory
 
         // Clear the shared memory for aircraft data
