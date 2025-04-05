@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <cstring>
 #include <mutex>
+#include <atomic>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <semaphore.h>
@@ -24,6 +25,14 @@ using namespace std;
 #define shared_comms_name "/shm_communication"
 #define sem_comms_name "/comm_semaphore"
 
+
+int shm_fd_term;
+void* shm_ptr_term;
+sem_t* sem_term;
+
+const char* shm_termination = "/shm_term";
+const char* sem_termination = "/term_semaphore";
+const int size3 = 64;
 
 int max_planes=20; //maximum amount of planes allowed
 
@@ -192,7 +201,7 @@ for (int i = 0; i < max_planes; i++) {
 }
 }
 
-void changeParameters() {
+void changeParameters() { //opens shared memory with communications
     sem_comms = sem_open(sem_comms_name, O_CREAT, 0777, 1);
     if (sem_comms == SEM_FAILED) {
         perror("Failed to open semaphore");
@@ -219,7 +228,7 @@ void changeParameters() {
         sem_wait(sem_comms);
         lock_guard<mutex> lock(comms_mutex);
 
-        for (int i = 0; i < max_planes; i++) {
+        for (int i = 0; i < max_planes; i++) { //takes request from communications to change speed and calls changespeed function
             SharedAircraft& aircraftComms = sharedComms[i];
             if (aircraftComms.aircraftID == 0) continue;
 
@@ -237,6 +246,75 @@ void changeParameters() {
 }
 
 
+void startTerminationMonitor() { // opens termination shared memory
+    shm_fd_term = shm_open(shm_termination, O_CREAT | O_RDWR, 0777);
+    if (shm_fd_term == -1) {
+        perror("error with opening");
+        exit(1);
+    }
+
+    if (ftruncate(shm_fd_term, size3) == -1) {
+        perror("error with ftruncate");
+        exit(1);
+    }
+
+    shm_ptr_term = mmap(0, size3, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd_term, 0);
+    if (shm_ptr_term == MAP_FAILED) {
+        perror("error mapping");
+        exit(1);
+    }
+
+    sem_term = sem_open(sem_termination, O_CREAT, 0777, 1);
+    if (sem_term == SEM_FAILED) {
+        perror("error with sempahore");
+        exit(1);
+    }
+}
+
+bool checkTermination() {
+    int terminated = 0;
+
+    sem_wait(sem_term);
+    memcpy(&terminated, shm_ptr_term, sizeof(int));
+    sem_post(sem_term);
+
+    return terminated == 1;
+}
+
+void monitorTermination() { //check if termination signal recieved and send termination completion message
+    while (true) {
+        if (checkTermination()) {
+            cout << "Termination signal received. Terminating radar subsystem." << endl;
+
+
+            sem_wait(sem_term);
+                strncpy((char*)shm_ptr_term, "Radar", size3 - 1);
+                ((char*)shm_ptr_term)[size3 - 1] = '\0';
+                sem_post(sem_term);
+
+
+            munmap(shm_ptr_term, size3); //close shared memory and semaphores
+            close(shm_fd_term);
+            sem_close(sem_term);
+
+            munmap(sharedAircraftList, max_planes * sizeof(SharedAircraft));
+                       close(shm_fd);
+                       sem_close(sem_plane);
+                       sem_close(sem_comms);
+
+
+                       shm_unlink(shared_name);
+                       shm_unlink(shm_termination);
+
+            exit(0);
+        }
+
+        sleep(1);
+    }
+}
+
+
+
 
 
 int main() {
@@ -244,14 +322,17 @@ int main() {
 
 
     initializeSharedMemory();
+    startTerminationMonitor();
     loadAircraftFromFile();
     programStartTime = time(nullptr);
     thread t1(startTimer); //threads to make updating aircraft psoitions and speed change request run simultaneously
     thread t2(changeParameters);
+    thread t3(monitorTermination);
+
 
     t1.join();
     t2.join();
-
+t3.join();
     shm_unlink(shared_name);
     return 0;
 }
