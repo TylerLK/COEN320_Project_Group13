@@ -18,11 +18,12 @@ using namespace std;
 
 
 
-//shared memory and semaphore declaration for radar-computer and communications-radar communication
+//shared memory and sempahore declaration for radar-computer and communications-radar communication
 #define shared_name "/radar_shm"
 #define sem_name "/radar_semaphore"
-#define shared_comms_name "/comms_shm"
-#define sem_comms_name "/comms_semaphore"
+#define shared_comms_name "/shm_communication"
+#define sem_comms_name "/comm_semaphore"
+
 
 int max_planes=20; //maximum amount of planes allowed
 
@@ -69,7 +70,7 @@ void printData() { //function which prints updates and prints aircraft positions
 
         double elapsedTime = elapsedProgramTime - aircraft.startTime;
 
-if(aircraft.positionX<100000&&aircraft.positionY<100000&&aircraft.positionZ<40000){ //only update aircrafts if they are within bounds set by the project
+if(aircraft.positionX<100000||aircraft.positionY<100000||aircraft.positionZ<40000){ //only update aircrafts if they are within bounds set by the project
         aircraft.positionX += aircraft.speedX * elapsedTime;
         aircraft.positionY += aircraft.speedY * elapsedTime;
         aircraft.positionZ += aircraft.speedZ * elapsedTime;
@@ -97,17 +98,21 @@ void loadAircraftFromFile() { //load aircrafts from the file chosen into the sha
 
     int i = 0;
     while (file && i < max_planes) {
-        SharedAircraft aircraft;
-        string id;
+           SharedAircraft aircraft;
+           if (file >> aircraft.aircraftID >> aircraft.positionX >> aircraft.positionY >> aircraft.positionZ
+                     >> aircraft.speedX >> aircraft.speedY >> aircraft.speedZ >> aircraft.startTime) {
+               sharedAircraftList[i] = aircraft;
+               i++;
+           } else {
 
-        file >> aircraft.aircraftID >> aircraft.positionX >> aircraft.positionY >> aircraft.positionZ
-             >> aircraft.speedX >> aircraft.speedY >> aircraft.speedZ >> aircraft.startTime;
-
-
-
-        sharedAircraftList[i] = aircraft;
-        i++;
-    }
+               if (file.eof()) {//fixed issue where duplicate last entry appeared
+                   break;
+               } else {
+                   cerr << "Error reading data!" << endl;
+                   file.ignore(numeric_limits<streamsize>::max(), '\n');
+               }
+           }
+       }
     file.close();
 }
 
@@ -187,56 +192,50 @@ for (int i = 0; i < max_planes; i++) {
 }
 }
 
-void changeParameters(){ //function which reads shared memory between communications-radar to update requested aircraft speeds
+void changeParameters() {
+    sem_comms = sem_open(sem_comms_name, O_CREAT, 0777, 1);
+    if (sem_comms == SEM_FAILED) {
+        perror("Failed to open semaphore");
+        exit(EXIT_FAILURE);
+    }
 
-	sem_comms = sem_open(sem_comms_name, O_CREAT, 0777, 1);
-	        if (sem_comms == SEM_FAILED) {
-	            perror("Failed to open semaphore");
-	            exit(EXIT_FAILURE);
-	        }
+    int shm_fd_comms = shm_open(shared_comms_name, O_CREAT | O_RDWR, 0777);
+    if (shm_fd_comms == -1) {
+        perror("failed to open shared memory");
+        exit(EXIT_FAILURE);
+    }
 
-	int shm_fd_comms=shm_open(shared_comms_name,O_CREAT|O_RDWR, 0777);
-	if(shm_fd_comms==-1){
-		perror("failed");
-		exit(EXIT_FAILURE);
-	}
+    SharedAircraft* sharedComms = (SharedAircraft*)mmap(0, sizeof(SharedAircraft) * max_planes, PROT_READ, MAP_SHARED, shm_fd_comms, 0);
+    if (sharedComms == MAP_FAILED) {
+        perror("Failed to map shared memory");
+        sem_close(sem_comms);
+        close(shm_fd_comms);
+        exit(EXIT_FAILURE);
+    }
 
-	SharedAircraft* sharedComms=(SharedAircraft*)mmap(0, sizeof(SharedAircraft)*max_planes, PROT_READ, MAP_SHARED, shm_fd_comms, 0);
+    cout << "Radar: Communications shared memory received" << endl;
 
-	if(sharedComms==MAP_FAILED){
-		perror("Failed to map");
-		sem_close(sem_comms);
-		close(shm_fd_comms);
-		exit(EXIT_FAILURE);
-	}
-cout<<"Communications shared memory received"<<endl;
-sem_wait(sem_comms);
-lock_guard<mutex> lock(comms_mutex);
+    while (true) {
+        sem_wait(sem_comms);
+        lock_guard<mutex> lock(comms_mutex);
 
-aircrafting.clear();
+        for (int i = 0; i < max_planes; i++) {
+            SharedAircraft& aircraftComms = sharedComms[i];
+            if (aircraftComms.aircraftID == 0) continue;
 
-for (int i = 0; i < max_planes; i++) {
-SharedAircraft& aircraftComms = sharedAircraftList[i];
+            changeSpeed(
+                aircraftComms.aircraftID,
+                aircraftComms.speedX,
+                aircraftComms.speedY,
+                aircraftComms.speedZ
+            );
+        }
 
-if (aircraftComms.aircraftID == 0) {
-                        continue;
-                    }
-
-
-SharedAircraft temp;
-temp.aircraftID = aircraftComms.aircraftID;
-temp.speedX = aircraftComms.speedX;
-temp.speedY = aircraftComms.speedY;
-temp.speedZ = aircraftComms.speedZ;
-aircrafting.push_back(temp);
-
-//aircrafting.emplace_back(aircraftComms.aircraftID, aircraftComms.speedX, aircraftComms.speedY, aircraftComms.speedZ);
- 	 changeSpeed(aircraftComms.aircraftID, aircraftComms.speedX, aircraftComms.speedY, aircraftComms.speedZ); //call changespeed function for all requested aircrafts in shared memory
+        sem_post(sem_comms);
+        sleep(1); // check for updates every second
+    }
 }
-	        close(shm_fd_comms);
-	        sem_post(sem_comms);
 
-}
 
 
 
