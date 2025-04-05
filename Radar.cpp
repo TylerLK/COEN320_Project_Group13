@@ -18,7 +18,7 @@ using namespace std;
 
 
 
-//shared memory and sempahore declaration for radar-computer and communications-radar communication
+//shared memory and semaphore declaration for radar-computer and communications-radar communication
 #define shared_name "/radar_shm"
 #define sem_name "/radar_semaphore"
 #define shared_comms_name "/shm_communication"
