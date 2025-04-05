@@ -80,6 +80,8 @@ int main()
          << "Information regarding aircrafts will appear below..." << endl;
 
     /* START SETUP*/
+    terminateNow = new atomic<bool>(false);
+
     // Data
     // Regular Aircrafts
     int shm_fd_reg = shm_open(SHARED_MEMORY_AIRCRAFT_DATA, O_RDONLY, 0666);
@@ -161,7 +163,7 @@ int main()
         return -1;
     }
 
-    sem_t *sem_term = sem_open(SEMAPHORE_TERMINATION, O_RDONLY, 0666, 1);
+    sem_t *sem_term = sem_open(SEMAPHORE_TERMINATION, O_RDWR, 0666, 1);
     if (sem_term == SEM_FAILED)
     {
         perror("sem_open() for termination has failed");
@@ -225,6 +227,8 @@ int main()
         perror("sem_close() for termination failed");
         return false;
     }
+
+    delete terminateNow;
     /* END CLEANUP */
 
     return 0;
