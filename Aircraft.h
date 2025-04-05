@@ -10,7 +10,7 @@ class Aircraft
 {
 public:
     // Constructor
-    Aircraft(int t, string id, double posX, double posY, double posZ, double sX, double sY, double sZ)
+    Aircraft(int t, int id, double posX, double posY, double posZ, double sX, double sY, double sZ, bool violation)
     {
         time = t;
         aircraftID = id;
@@ -20,6 +20,8 @@ public:
         speedX = sX;
         speedY = sY;
         speedZ = sZ;
+        isViolation = violation;
+
     }
 
     // Getters and Setters
@@ -33,12 +35,12 @@ public:
         time = t;
     }
 
-    string getAircraftID()
+    int getAircraftID()
     {
         return aircraftID;
     }
 
-    void setAircraftID(string id)
+    void setAircraftID(int id)
     {
         aircraftID = id;
     }
@@ -103,6 +105,14 @@ public:
         speedZ = sZ;
     }
 
+    bool getIsViolation(){
+    	return isViolation;
+    }
+
+    void setIsViolation(bool violation){
+    	isViolation = violation;
+    }
+
     // This method updates the position of the aircraft based on the speed of the aircraft in the different directions.
     void updatePosition(double timeElapsed)
     {
@@ -120,11 +130,12 @@ public:
 private:
     // Attributes
     int time;       // The time at which the aircraft enters the airspace.
-    string aircraftID; // The unique ID of the aircraft.
+    int aircraftID; // The unique ID of the aircraft.
     double positionX;  // The position of the aircraft along the x-axis.
     double positionY;  // The position of the aircraft along the y-axis.
     double positionZ;  // The position of the aircraft along the z-axis.
     double speedX;     // The speed of the aircraft along the x-axis.
     double speedY;     // The speed of the aircraft along the y-axis.
     double speedZ;     // The speed of the aircraft along the z-axis.
+    bool isViolation = 0;
 };

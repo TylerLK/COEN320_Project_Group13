@@ -15,7 +15,7 @@
 #include <fcntl.h>    // For shm_open, O_CREAT, O_RDWR
 #include <unistd.h>   // For ftruncate
 #include <cstring>    // For memcpy
-#include "Aircraft.h" // Include the Aircraft header file
+#include "Aircraft.h"
 #include <sstream>
 
 //m1
@@ -38,6 +38,7 @@ const char* DATADISPLAY_SEMAPHORE_NAME = "/datadisplay_semaphore";
 // Shared memory names
 const char* AIRCRAFT_SHARED_MEMORY_NAME = "/AircraftData";
 const char* ALERTS_SHARED_MEMORY_NAME = "/AlertsData";
+const char* AUGMENTED_INFO_MEMORY_NAME ="/AugmentedData";
 
 int alertsShmFd;        // File descriptor for alerts shared memory
 void* alertsShmPtr;     // Pointer to alerts shared memory
@@ -69,8 +70,22 @@ sem_t* sem_comm;       // Semaphore for communication
 void* shm_ptr_comm;    // Pointer to shared memory for communication
 int shm_fd_comm;       // File descriptor for shared memory (communication)
 
+
+sem_t* sem_display;          // Semaphore for data display synchronization
+void* shm_ptr_alerts;        // Pointer to shared memory for alerts
+void* shm_ptr_aircrafts;     // Pointer to shared memory for aircraft data
+int shm_fd_alerts;           // File descriptor for shared memory (alerts)
+int shm_fd_aircrafts;        // File descriptor for shared memory (aircraft data)
+mutex alertsMutex;           // Mutex for protecting alerts shared memory
+mutex aircraftsMutex;        // Mutex for protecting aircraft data shared memory
+
+sem_t* sem_augmentedInfo;       // Semaphore for augmented information
+void* shm_ptr_augmentedInfo;    // Pointer to shared memory for augmented information
+int shm_fd_augmentedInfo;       // File descriptor for shared memory (augmented information)
+
+
 struct SharedAircraft {
-    char aircraftID[10];
+    int aircraftID;
     double positionX, positionY, positionZ;
     double speedX, speedY, speedZ;
     int startTime;
@@ -92,7 +107,7 @@ struct Alert {
 class Computer {
 public:
     // Constructor
-    Computer() : terminate(false), logFile("log.txt", ios::out | ios::app) {
+    Computer() : terminate(false), logFile("history.txt", ios::out | ios::app) {
         if (!logFile.is_open()) {
             cerr << "Error opening log file." << endl;
         } else {
@@ -223,6 +238,70 @@ public:
             perror("sem_open() for communication failed");
             exit(1);
         }
+        // Initialize shared memory for alerts
+        shm_fd_alerts = shm_open(ALERTS_SHARED_MEMORY_NAME, O_CREAT | O_RDWR, 0666);
+        if (shm_fd_alerts == -1) {
+            perror("shm_open() for alerts failed");
+            exit(1);
+        }
+
+        if (ftruncate(shm_fd_alerts, SHM_SIZE) == -1) {
+            perror("ftruncate() for alerts failed");
+            exit(1);
+        }
+
+        shm_ptr_alerts = mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd_alerts, 0);
+        if (shm_ptr_alerts == MAP_FAILED) {
+            perror("mmap() for alerts failed");
+            exit(1);
+        }
+
+        // Initialize shared memory for aircraft data
+        shm_fd_aircrafts = shm_open(AIRCRAFT_SHARED_MEMORY_NAME, O_CREAT | O_RDWR, 0666);
+        if (shm_fd_aircrafts == -1) {
+            perror("shm_open() for aircraft data failed");
+            exit(1);
+        }
+
+        if (ftruncate(shm_fd_aircrafts, SHM_SIZE) == -1) {
+            perror("ftruncate() for aircraft data failed");
+            exit(1);
+        }
+
+        shm_ptr_aircrafts = mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd_aircrafts, 0);
+        if (shm_ptr_aircrafts == MAP_FAILED) {
+            perror("mmap() for aircraft data failed");
+            exit(1);
+        }
+
+        // Initialize semaphore for data display synchronization
+        sem_display = sem_open(DATADISPLAY_SEMAPHORE_NAME, O_CREAT, 0666, 1);
+        if (sem_display == SEM_FAILED) {
+            perror("sem_open() for data display failed");
+            exit(1);
+        }
+        shm_fd_augmentedInfo = shm_open(AUGMENTED_INFO_MEMORY_NAME, O_CREAT | O_RDWR, 0666);
+        if (shm_fd_augmentedInfo == -1) {
+            perror("shm_open() for augmented information failed");
+            exit(1);
+        }
+
+        if (ftruncate(shm_fd_augmentedInfo, SHM_SIZE) == -1) {
+            perror("ftruncate() for augmented information failed");
+            exit(1);
+        }
+
+        shm_ptr_augmentedInfo = mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd_augmentedInfo, 0);
+        if (shm_ptr_augmentedInfo == MAP_FAILED) {
+            perror("mmap() for augmented information failed");
+            exit(1);
+        }
+
+        sem_augmentedInfo = sem_open("/augmented_info_semaphore", O_CREAT, 0666, 1);
+        if (sem_augmentedInfo == SEM_FAILED) {
+            perror("sem_open() for augmented information failed");
+            exit(1);
+        }
     }
 
     // Destructor
@@ -270,6 +349,18 @@ public:
             sem_close(sem_comm);
             sem_unlink(SEMAPHORE_COMMUNICATION);
         }
+        if (shm_ptr_augmentedInfo) {
+            munmap(shm_ptr_augmentedInfo, SHM_SIZE);
+        }
+        if (shm_fd_augmentedInfo != -1) {
+            close(shm_fd_augmentedInfo);
+        }
+        shm_unlink(AUGMENTED_INFO_MEMORY_NAME);
+
+        if (sem_augmentedInfo) {
+            sem_close(sem_augmentedInfo);
+            sem_unlink("/augmented_info_semaphore");
+        }
     }
 
     // Main function for the Computer class
@@ -278,12 +369,18 @@ public:
         thread violationThread(&Computer::checkViolationsAndAlerts, this);
         thread loggingThread(&Computer::logAircraftData, this);
         thread operatorThread(&Computer::processOperatorCommands, this);
+        thread aircraftThread(&Computer::aircraftDataThread, this);
+        thread alertsThread(&Computer::alertsDataThread, this);
+        thread displayThread(&Computer::dataDisplayThread, this);
 
 
         radarThread.join();
         violationThread.join();
         loggingThread.join();
         operatorThread.join();
+        aircraftThread.join();
+        alertsThread.join();
+        displayThread.join();
     }
 
 private:
@@ -358,7 +455,7 @@ private:
 
             {
                 lock_guard<mutex> lock(air_mutex); // Protect access to the aircrafts vector
-
+                lock_guard<mutex> aircraftlock(aircraftsMutex);
                 // Clear the current aircraft list
                 aircrafts.clear();
 
@@ -367,20 +464,21 @@ private:
                     SharedAircraft& radarAircraft = sharedAircraftList[i];
 
                     // Skip empty or uninitialized entries
-                    if (strlen(radarAircraft.aircraftID) == 0) {
+                    if (radarAircraft.aircraftID == 0) {
                         continue;
                     }
 
                     // Convert SharedAircraft to Aircraft and add to the vector
                     aircrafts.emplace_back(
-                        "12:00", // Placeholder timestamp
+                        radarAircraft.startTime,
                         radarAircraft.aircraftID,
                         radarAircraft.positionX,
                         radarAircraft.positionY,
                         radarAircraft.positionZ,
                         radarAircraft.speedX,
                         radarAircraft.speedY,
-                        radarAircraft.speedZ
+                        radarAircraft.speedZ,
+						0
                     );
                 }
             }
@@ -407,7 +505,7 @@ private:
                     Aircraft a2 = aircrafts[j];
 
                     if (violationCheck(&a1, &a2)) {
-                        alerts.push({0, "Separation violation detected between " + a1.getAircraftID() + " and " + a2.getAircraftID()});
+                        alerts.push({0, "Separation violation detected between " + to_string(a1.getAircraftID()) + " and " + to_string(a2.getAircraftID())});
                     }
                 }
             }
@@ -422,17 +520,19 @@ private:
         }
     }
 
-    //just adds data into log. use this for the history.
+    //just adds data into log. use this for the history
     void logAircraftData() {
         while (!terminate) {
             this_thread::sleep_for(chrono::seconds(20));
 
             lock_guard<mutex> lock(alertMutex);
             logFile << "Logging aircraft data..." << endl;
-            for (const auto& aircraft : aircrafts) {
+            for (auto& aircraft : aircrafts) {
                 logFile << "Aircraft ID: " << aircraft.getAircraftID()
                         << ", Position: (" << aircraft.getPositionX() << ", "
-                        << aircraft.getPositionY() << ", " << aircraft.getPositionZ() << ")" << endl;
+                        << aircraft.getPositionY() << ", " << aircraft.getPositionZ() << ")"
+						<< ", Velocity: (" << aircraft.getSpeedX() << ", "
+                        << aircraft.getSpeedY() << ", " << aircraft.getSpeedZ() << ")" << endl;
             }
         }
     }
@@ -463,32 +563,13 @@ private:
                                                to_string(newSpeedX) + " " +
                                                to_string(newSpeedY) + " " +
                                                to_string(newSpeedZ);
-                    } else if (commandType == "Altitude_Change") {
-                        int newAltitude;
-                        iss >> newAltitude;
-                        communicationMessage = "Altitude_Change " + aircraftID + " " +
-                                               to_string(newAltitude);
-                    } else if (commandType == "Position_Change") {
-                        int newPositionX, newPositionY;
-                        iss >> newPositionX >> newPositionY;
-                        communicationMessage = "Position_Change " + aircraftID + " " +
-                                               to_string(newPositionX) + " " +
-                                               to_string(newPositionY);
+
+                        sendToCommunication(aircraftID, communicationMessage);
+
                     } else if (commandType == "Augmented_Information") {
-                        communicationMessage = "Augmented_Information " + aircraftID;
+                        //todo: add augmented info method
                     }
 
-                    // Send the parsed command to communication shared memory
-                    if (!communicationMessage.empty()) {
-                        sem_wait(sem_comm); // Lock semaphore for communication
-
-                        // Write the message to shared memory
-                        strncpy(static_cast<char*>(shm_ptr_comm), communicationMessage.c_str(), COMM_SHM_SIZE);
-
-                        sem_post(sem_comm); // Unlock semaphore for communication
-
-                        cout << "Command sent to communication: " << communicationMessage << endl;
-                    }
                     // Clear the shared memory for logs after processing the command
                                memset(shm_ptr_logs, 0, SHM_SIZE);
                                cout << "Shared memory for logs cleared after processing command." << endl;
@@ -500,16 +581,29 @@ private:
 
     //protected send() function.
     void sendToCommunication(const string& aircraft, const string& command) {
-        sem_wait(communicationSemaphore);
-        cout << "Sending command for aircraft " << aircraft <<" to communication: " << command << endl;
-        sem_post(communicationSemaphore);
+        sem_wait(sem_comm);
+        // Write the message to shared memory
+            char* mem = static_cast<char*>(shm_ptr_comm);
+            memset(mem, 0, COMM_SHM_SIZE); // Clear the shared memory
+
+            // Ensure we don't exceed the shared memory size
+            if (command.size() >= COMM_SHM_SIZE) {
+                cerr << "Shared memory full, unable to write communication message." << endl;
+                sem_post(sem_comm); // Unlock semaphore
+                return;
+            }
+
+            memcpy(mem, command.c_str(), command.size());
+
+        sem_post(sem_comm);
     }
 
     void checkViolationsAndAlerts() {
         while (!terminate) {
-            this_thread::sleep_for(chrono::seconds(5)); // Periodic task every 5 seconds
+            this_thread::sleep_for(chrono::seconds(3)); // Periodic task every 5 seconds
 
             lock_guard<mutex> lock(alertMutex); // Protect access to the alerts queue
+            lock_guard<mutex> aircraftslock(aircraftsMutex);
 
             for (size_t i = 0; i < aircrafts.size(); ++i) {
                 for (size_t j = i + 1; j < aircrafts.size(); ++j) {
@@ -518,14 +612,19 @@ private:
 
                     // Check for separation violations
                     if (violationCheck(&a1, &a2)) {
-                        alerts.push({0, "Separation violation detected between " + a1.getAircraftID() + " and " + a2.getAircraftID()});
+                        alerts.push({0, "Separation violation detected between " + to_string(a1.getAircraftID()) + " and " + to_string(a2.getAircraftID())});
+                        a1.setIsViolation(1);
+                        a2.setIsViolation(1);
+                        cout << "Violation found. Taking necessary actions." << endl;
                     }
                     else{
 
                     // Check for potential collisions
                     auto [collisionDetected, collisionTime] = collisionCheck(&a1, &a2);
                     if (collisionDetected) {
-                        alerts.push({collisionTime, "Collision will occur in " + to_string(collisionTime) + " seconds between " + a1.getAircraftID() + " and " + a2.getAircraftID()});
+                        alerts.push({collisionTime, "Collision will occur in " + to_string(collisionTime) + " seconds between " + to_string(a1.getAircraftID()) + " and " + to_string(a2.getAircraftID())});
+                        a1.setIsViolation(1);
+                        a2.setIsViolation(1);
                     }
 
                     }
@@ -536,23 +635,137 @@ private:
             sendAlertsToDataDisplay();
         }
     }
+//    void sendAircrafts() {
+//    	sem_wait(dataDisplaySemaphore);
+//    	//TODO: ADD SHARED MEMORY PORTION HERE
+//
+//    }
+    void sendAircrafts() {
+        sem_wait(sem_display); // Lock semaphore for aircraft data
+        lock_guard<mutex> lock(aircraftsMutex); // Protect access to aircraft shared memory
+
+        // Clear the shared memory for aircraft data
+        memset(shm_ptr_aircrafts, 0, SHM_SIZE);
+
+        // Write aircraft data to shared memory
+        char* mem = static_cast<char*>(shm_ptr_aircrafts);
+        for (auto& aircraft : aircrafts) {
+            string data = to_string(aircraft.getAircraftID()) + " " +
+                          to_string(aircraft.getPositionX()) + " " +
+                          to_string(aircraft.getPositionY()) + " " +
+                          to_string(aircraft.getPositionZ()) + " " +
+						  to_string(aircraft.getIsViolation()) +"\n";
+
+            // Ensure we don't exceed the shared memory size
+            if (mem + data.size() > static_cast<char*>(shm_ptr_aircrafts) + SHM_SIZE) {
+                cerr << "Shared memory full, unable to write more aircraft data." << endl;
+                break;
+            }
+
+            memcpy(mem, data.c_str(), data.size());
+            mem += data.size();
+        }
+
+        sem_post(dataDisplaySemaphore); // Unlock semaphore for aircraft data
+    }
 
     void sendAlertsToDataDisplay() {
         sem_wait(dataDisplaySemaphore); // Lock semaphore for data display
 
+        lock_guard<mutex> lock(alertsMutex); // Protect access to alerts shared memory
+
+        // Clear the shared memory for alerts
+        memset(shm_ptr_alerts, 0, SHM_SIZE);
+
+        // Write alert data to shared memory
+        char* mem = static_cast<char*>(shm_ptr_alerts);
         while (!alerts.empty()) {
             Alert alert = alerts.top();
             alerts.pop();
-            sendAlert(alert.message); // Send alert to data display
+
+            string data = "ALERT: Time: " + to_string(alert.time) +
+                          ", Message: " + alert.message + "\n";
+
+            // Ensure we don't exceed the shared memory size
+            if (mem + data.size() > static_cast<char*>(shm_ptr_alerts) + SHM_SIZE) {
+                cerr << "Shared memory full, unable to write more alert data." << endl;
+                break;
+            }
+
+            memcpy(mem, data.c_str(), data.size());
+            mem += data.size();
         }
 
-        sem_post(dataDisplaySemaphore); // Unlock semaphore
+        sem_post(dataDisplaySemaphore); // Unlock semaphore for data display
     }
 
-    void sendAlert(const string& message) {
-        cout << "ALERT: " << message << endl;
-        logMessage("ALERT: " + message); // Log the alert
+    void augmentInformation(int aircraftID) {
+        sem_wait(sem_augmentedInfo); // Lock semaphore for augmented info
+
+        lock_guard<mutex> lock(aircraftsMutex); // Protect access to the aircrafts vector
+
+        // Search for the aircraft in the vector
+        auto it = find_if(aircrafts.begin(), aircrafts.end(), [aircraftID](Aircraft& aircraft) {
+            return aircraft.getAircraftID() == aircraftID;
+        });
+
+        if (it == aircrafts.end()) {
+            cerr << "Aircraft with ID " << aircraftID << " not found." << endl;
+            sem_post(sem_augmentedInfo); // Unlock semaphore
+            return;
+        }
+
+        // Get the aircraft's information
+        Aircraft& aircraft = *it;
+        string data = to_string(aircraft.getAircraftID()) + " " +
+                to_string(aircraft.getPositionX()) + " " +
+                to_string(aircraft.getPositionY()) + " " +
+                to_string(aircraft.getPositionZ()) + " " +
+				to_string(aircraft.getSpeedX()) + " " +
+                to_string(aircraft.getSpeedY()) + " " +
+                to_string(aircraft.getSpeedZ());
+
+        // Write the data to shared memory
+        char* mem = static_cast<char*>(shm_ptr_augmentedInfo);
+        memset(mem, 0, SHM_SIZE); // Clear the shared memory
+
+        // Ensure we don't exceed the shared memory size
+        if (data.size() >= SHM_SIZE) {
+            cerr << "Shared memory full, unable to write augmented info." << endl;
+            sem_post(sem_augmentedInfo); // Unlock semaphore
+            return;
+        }
+
+        memcpy(mem, data.c_str(), data.size());
+
+        sem_post(sem_augmentedInfo); // Unlock semaphore
+        cout << "Augmented info for aircraft " << aircraftID << " sent to shared memory." << endl;
     }
+
+//     void sendAlert(const string& message) {
+//        cout << "ALERT: " << message << endl;
+//        logMessage("ALERT: " + message); // Log the alert
+//
+//        lock_guard<mutex> lock(alertsMutex); // Protect access to alerts shared memory
+//
+//        // Append the alert message to shared memory
+//        char* mem = static_cast<char*>(shm_ptr_alerts);
+//
+//        // Find the end of the current data in shared memory
+//        while (*mem != '\0' && mem < static_cast<char*>(shm_ptr_alerts) + SHM_SIZE) {
+//            mem++;
+//        }
+//
+//        string data = "ALERT: " + message + "\n";
+//
+//        // Ensure we don't exceed the shared memory size
+//        if (mem + data.size() > static_cast<char*>(shm_ptr_alerts) + SHM_SIZE) {
+//            cerr << "Shared memory full, unable to write alert." << endl;
+//            return;
+//        }
+//
+//        memcpy(mem, data.c_str(), data.size());
+//    }
 
     bool violationCheck(Aircraft* a1, Aircraft* a2) {
         double dx = abs(a1->getPositionX() - a2->getPositionX());
@@ -641,6 +854,31 @@ private:
             logFile << message << endl;
         }
     }
+    void aircraftDataThread() {
+        while (!terminate) {
+            this_thread::sleep_for(chrono::seconds(5)); // Update every 5 seconds
+            sendAircrafts();
+            cout << "Aircraft data sent to shared memory." << endl;
+        }
+    }
+    void alertsDataThread() {
+        while (!terminate) {
+            this_thread::sleep_for(chrono::seconds(5)); // Update every 5 seconds
+            sendAlertsToDataDisplay();
+            cout << "Alerts sent to shared memory." << endl;
+        }
+    }
+    void dataDisplayThread() {
+        while (!terminate) {
+            sem_wait(dataDisplaySemaphore); // Wait for data to be updated
+            cout << "Data display system is reading updated data." << endl;
+            sem_post(dataDisplaySemaphore); // Allow further updates
+            this_thread::sleep_for(chrono::seconds(5)); // Simulate data display processing
+        }
+    }
+
+
+
 
 public:
 //    void printData() {
