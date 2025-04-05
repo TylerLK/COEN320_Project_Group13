@@ -361,8 +361,7 @@ bool terminateSystem(fstream &f, void *ptr_logs, int fd_logs, void *ptr_term, in
             const char *command = terminationSignal.c_str();
             if (terminationSignal.size() < SHM_SIZE)
             {
-                strncpy((char *)ptr_logs, command, SHM_SIZE);
-
+                strncpy((char *)ptr_term, command, SHM_SIZE);
                 cout << "The termination signal has been sent to the other subsystems..." << endl;
             }
             else
