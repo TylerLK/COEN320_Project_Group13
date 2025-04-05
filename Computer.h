@@ -615,7 +615,7 @@ private:
                         alerts.push({0, "Separation violation detected between " + to_string(a1.getAircraftID()) + " and " + to_string(a2.getAircraftID())});
                         a1.setIsViolation(1);
                         a2.setIsViolation(1);
-                        cout << "violation found. kill kill kill " <<endl;
+                        cout << "Violation found. Taking necessary actions." << endl;
                     }
                     else{
 
