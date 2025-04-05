@@ -354,7 +354,7 @@ bool terminateSystem(fstream &f, void *ptr_logs, int fd_logs, void *ptr_term, in
             }
 
             sem_wait(sem_term); // The shared memory should block other processes while being cleaned up.
-            // Write into the termination shared memory that the other subsystems should begin temination.
+            // Write into the termination shared memory that the other subsystems should begin termination.
             string terminationSignal = "Termination \n";
 
             // Write the termination signal into shared memory
