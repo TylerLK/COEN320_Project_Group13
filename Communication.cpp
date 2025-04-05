@@ -95,7 +95,7 @@ void CommunicationCommand() { //send message from computer to radar for speed ch
 
         for (int i = 0; i < max_planes; ++i) { //send selected aircraft
             if (shm_ptr_comm[i].aircraftID == aircraftID) {
-            	shm_ptr_comm[i].aircraftID == aircraftID;
+            	shm_ptr_comm[i].aircraftID = aircraftID;
                 shm_ptr_comm[i].speedX = newSpeedX;
                 shm_ptr_comm[i].speedY = newSpeedY;
                 shm_ptr_comm[i].speedZ = newSpeedZ;
