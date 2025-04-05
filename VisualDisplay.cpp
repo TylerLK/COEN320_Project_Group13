@@ -89,14 +89,6 @@ int main()
         exit(1);
     }
 
-    // Resize the shared memory for the regular aircrafts.
-    int size_reg = ftruncate(shm_fd_reg, SHM_SIZE);
-    if (size_reg == -1)
-    {
-        perror("ftruncate() resizing for the regular aircrafts failed"); // This will print the String argument with the errno value appended.
-        return -1;
-    }
-
     // Mapping the shared memory into the Visual Display's address space.
     void *shm_ptr_reg = mmap(0, SHM_SIZE, PROT_READ, MAP_SHARED, shm_fd_reg, 0);
     if (shm_ptr_reg == MAP_FAILED)
@@ -113,14 +105,6 @@ int main()
         exit(1);
     }
 
-    // Resize the shared memory for the regular aircrafts.
-    int size_aug = ftruncate(shm_fd_aug, SHM_SIZE);
-    if (size_aug == -1)
-    {
-        perror("ftruncate() resizing for the augmented aircrafts failed"); // This will print the String argument with the errno value appended.
-        return -1;
-    }
-
     // Mapping the shared memory into the Visual Display's address space.
     void *shm_ptr_aug = mmap(0, SHM_SIZE, PROT_READ, MAP_SHARED, shm_fd_aug, 0);
     if (shm_ptr_aug == MAP_FAILED)
@@ -135,14 +119,6 @@ int main()
     {
         perror("shm_open() for the violations failed"); // This will print the String argument with the errno value appended.
         exit(1);
-    }
-
-    // Resize the shared memory for the regular aircrafts.
-    int size_viol = ftruncate(shm_fd_viol, SHM_SIZE);
-    if (size_viol == -1)
-    {
-        perror("ftruncate() resizing for the violations failed"); // This will print the String argument with the errno value appended.
-        return -1;
     }
 
     // Mapping the shared memory into the Visual Display's address space.
