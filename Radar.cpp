@@ -18,7 +18,7 @@ using namespace std;
 
 
 
-//shared memory and semaphore declaration for radar-computer and communications-radar communication
+//shared memory and sempahore declaration for radar-computer and communications-radar communication
 #define shared_name "/radar_shm"
 #define sem_name "/radar_semaphore"
 #define shared_comms_name "/shm_communication"
@@ -70,7 +70,7 @@ void printData() { //function which prints updates and prints aircraft positions
 
         double elapsedTime = elapsedProgramTime - aircraft.startTime;
 
-if(aircraft.positionX<100000&&aircraft.positionY<100000&&aircraft.positionZ<40000){ //only update aircrafts if they are within bounds set by the project
+if(aircraft.positionX<100000||aircraft.positionY<100000||aircraft.positionZ<40000){ //only update aircrafts if they are within bounds set by the project
         aircraft.positionX += aircraft.speedX * elapsedTime;
         aircraft.positionY += aircraft.speedY * elapsedTime;
         aircraft.positionZ += aircraft.speedZ * elapsedTime;
@@ -98,17 +98,21 @@ void loadAircraftFromFile() { //load aircrafts from the file chosen into the sha
 
     int i = 0;
     while (file && i < max_planes) {
-        SharedAircraft aircraft;
-        string id;
+           SharedAircraft aircraft;
+           if (file >> aircraft.aircraftID >> aircraft.positionX >> aircraft.positionY >> aircraft.positionZ
+                     >> aircraft.speedX >> aircraft.speedY >> aircraft.speedZ >> aircraft.startTime) {
+               sharedAircraftList[i] = aircraft;
+               i++;
+           } else {
 
-        file >> aircraft.aircraftID >> aircraft.positionX >> aircraft.positionY >> aircraft.positionZ
-             >> aircraft.speedX >> aircraft.speedY >> aircraft.speedZ >> aircraft.startTime;
-
-
-
-        sharedAircraftList[i] = aircraft;
-        i++;
-    }
+               if (file.eof()) {//fixed issue where duplicate last entry appeared
+                   break;
+               } else {
+                   cerr << "Error reading data!" << endl;
+                   file.ignore(numeric_limits<streamsize>::max(), '\n');
+               }
+           }
+       }
     file.close();
 }
 
