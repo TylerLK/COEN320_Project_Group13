@@ -300,7 +300,7 @@ void drawAirspace(vector<array<string, 5>> regularAircrafts, vector<array<string
     }
 
     // Add each line of augmented aircraft data to the vector.
-    if (augmentedAircrafts.size() != 0)
+    if (augmentedAircrafts.size() > 0)
     {
         for (size_t i = 0; i < augmentedAircrafts.size(); i++)
         {
@@ -461,7 +461,7 @@ void *aircraftDataHandling(void *arg)
         }
 
         // Calculate the position of each augmented aircraft that will be displayed on the grid, granted any exist.
-        if (augmentedAircraftData.size() != 0)
+        if (augmentedAircraftData.size() > 0)
         {
             augmentedAircraftsPresent = true; // Augmented aircraft data is present in the system.
 
@@ -544,7 +544,7 @@ void *violationHandling(void *arg)
         sem_post(args->sem_data); // The violations thread unlocks the semaphore for all data.
 
         // Check if any violations are present in the airspace.
-        if (violations.size() != 0)
+        if (violations.size() > 0)
         {
             insertBanner("Violations" + getCurrentTimestamp());
 
