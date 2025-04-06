@@ -40,10 +40,6 @@ const char* AIRCRAFT_SHARED_MEMORY_NAME = "/AircraftData";
 const char* ALERTS_SHARED_MEMORY_NAME = "/AlertsData";
 const char* AUGMENTED_INFO_MEMORY_NAME ="/AugmentedData";
 
-int alertsShmFd;        // File descriptor for alerts shared memory
-void* alertsShmPtr;     // Pointer to alerts shared memory
-size_t alertsShmSize;   // Size of the alerts shared memory
-
 // Shared memory and semaphore names for operator commands
 const char* SHARED_MEMORY_LOGS = "/shm_logs";
 const char* SEMAPHORE_LOGS = "/logs/semaphore";
@@ -71,7 +67,6 @@ void* shm_ptr_comm;    // Pointer to shared memory for communication
 int shm_fd_comm;       // File descriptor for shared memory (communication)
 
 
-sem_t* sem_display;          // Semaphore for data display synchronization
 void* shm_ptr_alerts;        // Pointer to shared memory for alerts
 void* shm_ptr_aircrafts;     // Pointer to shared memory for aircraft data
 int shm_fd_alerts;           // File descriptor for shared memory (alerts)
@@ -115,7 +110,7 @@ public:
         }
 
         cout << "Computer object created." << endl;
-        
+
         sem_unlink(AIRCRAFT_SEMAPHORE_NAME);
         sem_unlink(ALERTS_SEMAPHORE_NAME);
         sem_unlink(COMMUNICATION_SEMAPHORE_NAME);
@@ -141,8 +136,6 @@ public:
             cleanupSemaphores();
             exit(1);
         }
-
-        sem_unlink(DATADISPLAY_SEMAPHORE_NAME);
 
         dataDisplaySemaphore = sem_open(DATADISPLAY_SEMAPHORE_NAME, O_CREAT, 0666, 1);
         if (dataDisplaySemaphore == SEM_FAILED) {
@@ -281,12 +274,6 @@ public:
             exit(1);
         }
 
-        // Initialize semaphore for data display synchronization
-        sem_display = sem_open(DATADISPLAY_SEMAPHORE_NAME, O_CREAT, 0666, 1);
-        if (sem_display == SEM_FAILED) {
-            perror("sem_open() for data display failed");
-            exit(1);
-        }
         shm_fd_augmentedInfo = shm_open(AUGMENTED_INFO_MEMORY_NAME, O_CREAT | O_RDWR, 0666);
         if (shm_fd_augmentedInfo == -1) {
             perror("shm_open() for augmented information failed");
@@ -309,6 +296,29 @@ public:
             perror("sem_open() for augmented information failed");
             exit(1);
         }
+        int shm_fd_term = shm_open(SHARED_MEMORY_TERMINATION, O_CREAT | O_RDWR, 0666);
+            if (shm_fd_term == -1)
+            {
+                perror("shm_open() for termination failed()");
+                exit(1);
+            }
+
+            // Resize the shared memory for termination.
+            int size_term = ftruncate(shm_fd_term, SHM_SIZE);
+            if (size_term == -1)
+            {
+                perror("ftruncate() resizing for termination failed"); // This will print the String argument with the errno value appended.
+                exit(1);
+            }
+
+            // Mapping the shared memory into the Operator's address space.
+            void *shm_ptr_term = mmap(0, SHM_SIZE, PROT_WRITE, MAP_SHARED, shm_fd_term, 0);
+            if (shm_ptr_term == MAP_FAILED)
+            {
+                cerr << "Shared Memory Mapping for termination failed..." << endl;
+                exit(1);
+            }
+
     }
 
     // Destructor
@@ -372,14 +382,14 @@ public:
 
     // Main function for the Computer class
     void run() {
+    	terminate = false;
         thread radarThread(&Computer::updateFromRadar, this);
         thread violationThread(&Computer::checkViolationsAndAlerts, this);
         thread loggingThread(&Computer::logAircraftData, this);
         thread operatorThread(&Computer::processOperatorCommands, this);
         thread aircraftThread(&Computer::aircraftDataThread, this);
         thread alertsThread(&Computer::alertsDataThread, this);
-        thread displayThread(&Computer::dataDisplayThread, this);
-
+        thread terminationThread(&Computer::terminationHandling, this, sem_term, shm_ptr_term, ref(terminate));
 
         radarThread.join();
         violationThread.join();
@@ -387,7 +397,7 @@ public:
         operatorThread.join();
         aircraftThread.join();
         alertsThread.join();
-        displayThread.join();
+        terminationThread.join();
     }
 
 private:
@@ -404,6 +414,7 @@ private:
     void* aircraftShmPtr;
     size_t shm_size;
     ofstream logFile;
+
 
     void cleanupSemaphores() {
         if (radarSemaphore) sem_close(radarSemaphore);
@@ -500,6 +511,24 @@ private:
         close(shm_fdd);
         sem_close(sem_plane);
     }
+    void terminationHandling(sem_t* sem_term, void* shm_ptr_term, atomic<bool>& terminate) {
+            while (!terminate) {
+                sem_wait(sem_term);
+
+                // Read the termination signal from shared memory
+                char* terminationSignal = static_cast<char*>(shm_ptr_term);
+                string terminationSignalString(terminationSignal);
+
+                // Check if the signal is "Terminate"
+                if (terminationSignalString == "Terminate") {
+                    terminate = true; // Set the termination flag
+                    cout << "Termination signal received. Shutting down..." << endl;
+                }
+
+                sem_post(sem_term); // Unlock the semaphore
+                this_thread::sleep_for(chrono::seconds(10));
+            }
+        }
 
     //This method writes every 20 seconds in a History.log function
     void logAircraftData() {
@@ -563,7 +592,7 @@ private:
             }
         }
 
-   
+
     void sendToCommunication(const string& aircraft, const string& command) {
         sem_wait(sem_comm);
         // Write the message to shared memory
@@ -820,16 +849,10 @@ private:
     void alertsDataThread() {
         while (!terminate) {
             this_thread::sleep_for(chrono::seconds(5)); // Update every 5 seconds
-            sendAlertsToDataDisplay();
+            //sendAlertsToDataDisplay();
             cout << "Alerts sent to shared memory." << endl;
         }
     }
-    void dataDisplayThread() {
-        while (!terminate) {
-            sem_wait(dataDisplaySemaphore); // Wait for data to be updated
-            cout << "Data display system is reading updated data." << endl;
-            sem_post(dataDisplaySemaphore); // Allow further updates
-            this_thread::sleep_for(chrono::seconds(5)); // Simulate data display processing
-        }
-    }
+
+
 };
