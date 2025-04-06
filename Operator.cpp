@@ -10,7 +10,7 @@
 #include <sys/mman.h>  // Used to map shared memory to an address space.
 #include <sys/stat.h>  // Used to define file permissions.
 #include <cstring>
-#include <thread>
+#include <thread> // For "this_thread::sleep_for()".
 
 using namespace std;
 
