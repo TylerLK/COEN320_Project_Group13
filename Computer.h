@@ -33,7 +33,7 @@ sem_t* sem_plane;
 const char* AIRCRAFT_SEMAPHORE_NAME = "/aircraft_semaphore";
 const char* ALERTS_SEMAPHORE_NAME = "/alerts_semaphore";
 const char* COMMUNICATION_SEMAPHORE_NAME = "/communication_semaphore";
-const char* DATADISPLAY_SEMAPHORE_NAME = "/datadisplay_semaphore";
+const char* DATADISPLAY_SEMAPHORE_NAME = "/data_semaphore";
 
 // Shared memory names
 const char* AIRCRAFT_SHARED_MEMORY_NAME = "/AircraftData";
@@ -115,6 +115,11 @@ public:
         }
 
         cout << "Computer object created." << endl;
+        
+        sem_unlink(AIRCRAFT_SEMAPHORE_NAME);
+        sem_unlink(ALERTS_SEMAPHORE_NAME);
+        sem_unlink(COMMUNICATION_SEMAPHORE_NAME);
+        sem_unlink(DATADISPLAY_SEMAPHORE_NAME);
 
         // Initialize semaphores
         radarSemaphore = sem_open(AIRCRAFT_SEMAPHORE_NAME, O_CREAT, 0666, 1);
@@ -136,6 +141,8 @@ public:
             cleanupSemaphores();
             exit(1);
         }
+
+        sem_unlink(DATADISPLAY_SEMAPHORE_NAME);
 
         dataDisplaySemaphore = sem_open(DATADISPLAY_SEMAPHORE_NAME, O_CREAT, 0666, 1);
         if (dataDisplaySemaphore == SEM_FAILED) {
@@ -494,33 +501,7 @@ private:
         sem_close(sem_plane);
     }
 
-    void checkViolations() {
-        while (!terminate) {
-            this_thread::sleep_for(chrono::seconds(5));
-
-            lock_guard<mutex> lock(alertMutex);
-            for (size_t i = 0; i < aircrafts.size(); ++i) {
-                for (size_t j = i + 1; j < aircrafts.size(); ++j) {
-                    Aircraft a1 = aircrafts[i];
-                    Aircraft a2 = aircrafts[j];
-
-                    if (violationCheck(&a1, &a2)) {
-                        alerts.push({0, "Separation violation detected between " + to_string(a1.getAircraftID()) + " and " + to_string(a2.getAircraftID())});
-                    }
-                }
-            }
-
-            sem_wait(dataDisplaySemaphore);
-            while (!alerts.empty()) {
-                Alert alert = alerts.top();
-                alerts.pop();
-                cout << "Sending alert to data display: " << alert.message << endl;
-            }
-            sem_post(dataDisplaySemaphore);
-        }
-    }
-
-    //just adds data into log. use this for the history
+    //This method writes every 20 seconds in a History.log function
     void logAircraftData() {
         while (!terminate) {
             this_thread::sleep_for(chrono::seconds(20));
@@ -537,6 +518,8 @@ private:
         }
     }
 
+    //Taking commands from the operator file, sending them wherever they need to go. This command reads the shared memory
+    //from the operator, and then checks if an airplane's speeds are changing, or if there is a
     void processOperatorCommands() {
             while (!terminate) {
                 this_thread::sleep_for(chrono::seconds(1)); // Periodic task
@@ -567,7 +550,8 @@ private:
                         sendToCommunication(aircraftID, communicationMessage);
 
                     } else if (commandType == "Augmented_Information") {
-                        //todo: add augmented info method
+                        int id = stoi(aircraftID);
+                        augmentInformation(id);
                     }
 
                     // Clear the shared memory for logs after processing the command
@@ -579,7 +563,7 @@ private:
             }
         }
 
-    //protected send() function.
+   
     void sendToCommunication(const string& aircraft, const string& command) {
         sem_wait(sem_comm);
         // Write the message to shared memory
@@ -615,7 +599,7 @@ private:
                         alerts.push({0, "Separation violation detected between " + to_string(a1.getAircraftID()) + " and " + to_string(a2.getAircraftID())});
                         a1.setIsViolation(1);
                         a2.setIsViolation(1);
-                        cout << "Violation found. Taking necessary actions." << endl;
+                        cout << "violation found. kill kill kill " <<endl;
                     }
                     else{
 
@@ -635,13 +619,10 @@ private:
             sendAlertsToDataDisplay();
         }
     }
-//    void sendAircrafts() {
-//    	sem_wait(dataDisplaySemaphore);
-//    	//TODO: ADD SHARED MEMORY PORTION HERE
-//
-//    }
+
     void sendAircrafts() {
-        sem_wait(sem_display); // Lock semaphore for aircraft data
+        sem_wait(dataDisplaySemaphore); // Lock semaphore for aircraft data
+
         lock_guard<mutex> lock(aircraftsMutex); // Protect access to aircraft shared memory
 
         // Clear the shared memory for aircraft data
@@ -741,31 +722,6 @@ private:
         sem_post(sem_augmentedInfo); // Unlock semaphore
         cout << "Augmented info for aircraft " << aircraftID << " sent to shared memory." << endl;
     }
-
-//     void sendAlert(const string& message) {
-//        cout << "ALERT: " << message << endl;
-//        logMessage("ALERT: " + message); // Log the alert
-//
-//        lock_guard<mutex> lock(alertsMutex); // Protect access to alerts shared memory
-//
-//        // Append the alert message to shared memory
-//        char* mem = static_cast<char*>(shm_ptr_alerts);
-//
-//        // Find the end of the current data in shared memory
-//        while (*mem != '\0' && mem < static_cast<char*>(shm_ptr_alerts) + SHM_SIZE) {
-//            mem++;
-//        }
-//
-//        string data = "ALERT: " + message + "\n";
-//
-//        // Ensure we don't exceed the shared memory size
-//        if (mem + data.size() > static_cast<char*>(shm_ptr_alerts) + SHM_SIZE) {
-//            cerr << "Shared memory full, unable to write alert." << endl;
-//            return;
-//        }
-//
-//        memcpy(mem, data.c_str(), data.size());
-//    }
 
     bool violationCheck(Aircraft* a1, Aircraft* a2) {
         double dx = abs(a1->getPositionX() - a2->getPositionX());
@@ -876,51 +832,4 @@ private:
             this_thread::sleep_for(chrono::seconds(5)); // Simulate data display processing
         }
     }
-
-
-
-
-public:
-//    void printData() {
-//    cout << "Semaphore opened successfully." << endl;
-//	sem_plane=sem_open(sem_name, O_CREAT, 0777,1);
-//	if(sem_plane==SEM_FAILED){
-//		perror("Failed to open");
-//		exit(EXIT_FAILURE);
-//	}
-//	cout << "Semaphore opened successfully." << endl;
-//
-//    lock_guard<mutex> lock(air_mutex);
-//
-//    shm_fdd=shm_open(shared_name,O_RDWR, 0777);
-//    if(shm_fdd==-1){
-//    	perror("failed");
-//    	sem_post(sem_plane);
-//    	exit(EXIT_FAILURE);
-//    }
-//
-//    sharedAircraftList=(SharedAircraft*)mmap(0,sizeof(SharedAircraft)*10, PROT_READ|PROT_WRITE, MAP_SHARED, shm_fdd, 0);
-//    if(sharedAircraftList==MAP_FAILED){
-//    	perror("Failed to map");
-//    	sem_post(sem_plane);
-//    	exit(EXIT_FAILURE);
-//    }
-//    while(true){
-//    	sem_wait(sem_plane);
-//    	for (int i = 0; i < 8; i++) {
-//        SharedAircraft& aircraft = sharedAircraftList[i];
-//
-//        cout << "ID: " << aircraft.aircraftID
-//             << " | X: " << aircraft.positionX
-//             << " | Y: " << aircraft.positionY
-//             << " | Z: " << aircraft.positionZ << endl;
-//    	}
-//
-//
-//    	close(shm_fdd);
-//    	sem_post(sem_plane);
-//    	sleep(1);
-//    }
-//    	cout << endl;
-//    }
 };
