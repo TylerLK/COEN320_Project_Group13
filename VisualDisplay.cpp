@@ -369,7 +369,7 @@ void *aircraftDataHandling(void *arg)
     while (!*(args->terminateNow))
     {
         // Store the starting time of this task
-        steady_clock::time_point startTime = steady_clock::now();
+        std::chrono::steady_clock::time_point startTime = steady_clock::now();
 
         // Clear all of the vectors
         regularAircraftData = {};
@@ -512,10 +512,10 @@ void *aircraftDataHandling(void *arg)
         // End of the visual display.
 
         // Store the ending time of this task
-        steady_clock::time_point endTime = steady_clock::now();
+        std::chrono::steady_clock::time_point endTime = steady_clock::now();
 
         // Calculate the execution time of this task
-        duration<double> executionTime = duration_cast<duration<double>>(endTime - startTime);
+        std::chrono::duration<double> executionTime = duration_cast<duration<double>>(endTime - startTime);
 
         // Calculate the maximum allowable time for the task to sleep without missing its deadline
         double sleepTime = 5.0 - executionTime.count();
@@ -541,7 +541,7 @@ void *violationHandling(void *arg)
     while (!*(args->terminateNow))
     {
         // Store the starting time of this task
-        steady_clock::time_point startTime = steady_clock::now();
+        std::chrono::steady_clock::time_point startTime = steady_clock::now();
 
         // Clear the vectors holding the outdated violation data.
         violations = {};
@@ -582,10 +582,10 @@ void *violationHandling(void *arg)
         }
 
         // Store the ending time of this task
-        steady_clock::time_point endTime = steady_clock::now();
+        std::chrono::steady_clock::time_point endTime = steady_clock::now();
 
         // Calculate the execution time of this task
-        duration<double> executionTime = duration_cast<duration<double>>(endTime - startTime);
+        std::chrono::duration<double> executionTime = duration_cast<duration<double>>(endTime - startTime);
 
         // Calculate the maximum allowable time for the task to sleep without missing its deadline
         double sleepTime = 5.0 - executionTime.count();
