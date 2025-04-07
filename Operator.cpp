@@ -123,7 +123,8 @@ int main()
 
         if (primarySelection == 1)
         { // The operator would like to make a request about an aircraft.
-            while (1)
+            bool returnToMainMenu = false;
+            while (!returnToMainMenu)
             {
                 // Prompt the operator to make the secondary selection.
                 int secondarySelection = 0;
@@ -147,7 +148,8 @@ int main()
                     augmentedInformationRequest(logs, sem_logs, shm_ptr_logs);
                     break;
                 case 3:
-                    return; // Return to the main menu.
+                    returnToMain = true; // Return to the main menu.
+                    break;
                 default:
                     cout << "Invalid input. Please enter a number between 1 and 3." << endl;
                     break;
