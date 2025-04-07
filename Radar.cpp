@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <vector>
 #include <fstream>
-#include <unistd.h>
 #include <cstring>
 #include <mutex>
 #include <atomic>
@@ -212,9 +211,6 @@ void changeSpeed(int passedID, int speedx, int speedy, int speedz)
             aircraft.speedX = speedx;
             aircraft.speedY = speedy;
             aircraft.speedZ = speedz;
-        }
-        else
-        {
         }
     }
 }
