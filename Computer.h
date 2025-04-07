@@ -256,7 +256,7 @@ public:
             exit(1);
         }
 
-        sem_comm = sem_open(SEMAPHORE_COMMUNICATION, O_RDONLY, 0777, 1);
+        sem_comm = sem_open(SEMAPHORE_COMMUNICATION, O_CREAT | O_RDWR, 0777, 1);
         if (sem_comm == SEM_FAILED) {
             perror("sem_open() for communication failed");
             exit(1);
