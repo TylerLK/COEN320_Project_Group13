@@ -189,12 +189,6 @@ public:
             exit(1);
         }
 
-        if (ftruncate(shm_fd_logs, SHM_SIZE) == -1)
-        {
-            perror("ftruncate() for logs failed");
-            exit(1);
-        }
-
         shm_ptr_logs = mmap(0, SHM_SIZE, PROT_READ, MAP_SHARED, shm_fd_logs, 0);
         if (shm_ptr_logs == MAP_FAILED)
         {
