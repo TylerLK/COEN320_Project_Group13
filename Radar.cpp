@@ -291,7 +291,7 @@ void startTerminationMonitor()
         exit(1);
     }
 
-    sem_term = sem_open(sem_termination, O_CREAT, 0777, 1);
+    sem_term = sem_open(sem_termination, O_RDWR, 0666, 1);
     if (sem_term == SEM_FAILED)
     {
         perror("error with sempahore");

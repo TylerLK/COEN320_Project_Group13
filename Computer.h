@@ -230,7 +230,7 @@ public:
             exit(1);
         }
 
-        sem_term = sem_open(SEMAPHORE_TERMINATION, O_CREAT, 0666, 1);
+        sem_term = sem_open(SEMAPHORE_TERMINATION, O_RDWR, 0666, 1);
         if (sem_term == SEM_FAILED)
         {
             perror("sem_open() for termination failed");
