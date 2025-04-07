@@ -10,7 +10,7 @@
 #include <sys/mman.h>  // Used to map shared memory to an address space.
 #include <sys/stat.h>  // Used to define file permissions.
 #include <cstring>
-#include <thread>
+#include <thread> // For "this_thread::sleep_for()".
 
 using namespace std;
 
@@ -123,31 +123,37 @@ int main()
 
         if (primarySelection == 1)
         { // The operator would like to make a request about an aircraft.
-            int secondarySelection = 0;
-            insertBanner("Request Menu");
-            cout << "You can make the following requests about an aircraft:" << endl
-                 << "[1] Request a change in an aircraft's speed." << endl
-                 << "[2] Request augmented information about a specific aircraft." << endl
-                 << "[3] Go back to the main menu." << endl
-                 << "Enter the number of your choice: ";
-            // Take the operator's secondary selection as input.
-            cin >> secondarySelection;
-
-            switch (secondarySelection)
+            bool returnToMainMenu = false;
+            while (!returnToMainMenu)
             {
-            case 1:
-                insertBanner("[1] Speed Change Request");
-                speedChangeRequest(logs, sem_logs, shm_ptr_logs);
-                break;
-            case 2:
-                insertBanner("[2] Augmented Information Request");
-                augmentedInformationRequest(logs, sem_logs, shm_ptr_logs);
-                break;
-            case 3:
-                break;
-            default:
-                cout << "Invalid input. Please enter a number between 1 and 3." << endl;
-                break;
+                // Prompt the operator to make the secondary selection.
+                int secondarySelection = 0;
+                insertBanner("Request Menu");
+                cout << "You can make the following requests about an aircraft:" << endl
+                     << "[1] Request a change in an aircraft's speed." << endl
+                     << "[2] Request augmented information about a specific aircraft." << endl
+                     << "[3] Go back to the main menu." << endl
+                     << "Enter the number of your choice: ";
+                // Take the operator's secondary selection as input.
+                cin >> secondarySelection;
+
+                switch (secondarySelection)
+                {
+                case 1:
+                    insertBanner("[1] Speed Change Request");
+                    speedChangeRequest(logs, sem_logs, shm_ptr_logs);
+                    break;
+                case 2:
+                    insertBanner("[2] Augmented Information Request");
+                    augmentedInformationRequest(logs, sem_logs, shm_ptr_logs);
+                    break;
+                case 3:
+                    returnToMain = true; // Return to the main menu.
+                    break;
+                default:
+                    cout << "Invalid input. Please enter a number between 1 and 3." << endl;
+                    break;
+                }
             }
         }
         else if (primarySelection == 2)
@@ -231,11 +237,12 @@ void speedChangeRequest(fstream &f, sem_t *sem_logs, void *ptr_logs)
     cout << "Along the z-axis (in ft/s): ";
     cin >> newSpeedZ;
 
-    // Create the speed change request command
-    string speedChange = getCurrentTimestamp() + " " + "Speed_Change" + " " + to_string(aircraftID) + " " + to_string(newSpeedX) + " " + to_string(newSpeedY) + " " + to_string(newSpeedZ) + "\n";
+    // Create the speed change request command to be sent to the Computer
+    string speedChange = "Speed_Change" + " " + to_string(aircraftID) + " " + to_string(newSpeedX) + " " + to_string(newSpeedY) + " " + to_string(newSpeedZ) + "\n";
 
     // Log the speed change request command in "Logs.txt"
-    f << speedChange;
+    string speedChangeLog = getCurrentTimestamp() + " " + speedChange;
+    f << speedChangeLog;
 
     // Write the speed change request command into shared memory
     const char *command = speedChange.c_str();
@@ -277,10 +284,11 @@ void augmentedInformationRequest(fstream &f, sem_t *sem_logs, void *ptr_logs)
     }
 
     // Create the augmented information request command
-    string augmentedInformation = getCurrentTimestamp() + " " + "Augmented_Information" + " " + to_string(aircraftID) + "\n";
+    string augmentedInformation = "Augmented_Information" + " " + to_string(aircraftID) + "\n";
 
     // Log the augmented information request command in "Logs.txt"
-    f << augmentedInformation;
+    string augmentedInformationLog = getCurrentTimestamp() + " " + augmentedInformation;
+    f << augmentedInformationLog;
 
     // Write the augmented information request command into shared memory
     const char *command = augmentedInformation.c_str();

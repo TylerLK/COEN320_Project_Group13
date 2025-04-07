@@ -2,19 +2,20 @@
 #include <string>
 #include <sstream>
 #include <cstring>
-#include <cmath>  // Used for round();
-#include <vector> // Used to store aircraft data.
-#include <array>  // Used to store aircraft data.
-#include <tuple>
+#include <cmath>       // Used for round();
+#include <vector>      // Used to store aircraft data.
+#include <array>       // Used to store aircraft data.
+#include <tuple>       // Used to store grid positions.
 #include <ctime>       // Used to create a timestamp.
+#include <chrono>      // Used for a steady_clock
 #include <semaphore.h> // Used to define semaphores for inter-process synchronization.
 #include <fcntl.h>     // Used to open shared memory.
 #include <sys/mman.h>  // Used to map shared memory to an address space.
 #include <sys/stat.h>  // Used to define file permissions.
 #include <pthread.h>   // Used to create pthreads.
 #include <thread>      // For "this_thread::sleep_for()".
-#include <atomic>
-#include <unistd.h> // Used to allow the threads to sleep; Used for alarm().
+#include <atomic>      // Used to synchronize all threads for termination.
+#include <unistd.h>    // Used to allow the threads to sleep; Used for alarm().
 
 using namespace std;
 
@@ -300,7 +301,7 @@ void drawAirspace(vector<array<string, 5>> regularAircrafts, vector<array<string
     }
 
     // Add each line of augmented aircraft data to the vector.
-    if (augmentedAircrafts.size() != 0)
+    if (augmentedAircrafts.size() > 0)
     {
         for (size_t i = 0; i < augmentedAircrafts.size(); i++)
         {
@@ -367,6 +368,9 @@ void *aircraftDataHandling(void *arg)
 
     while (!*(args->terminateNow))
     {
+        // Store the starting time of this task
+        std::chrono::steady_clock::time_point startTime = steady_clock::now();
+
         // Clear all of the vectors
         regularAircraftData = {};
         augmentedAircraftData = {};
@@ -461,7 +465,7 @@ void *aircraftDataHandling(void *arg)
         }
 
         // Calculate the position of each augmented aircraft that will be displayed on the grid, granted any exist.
-        if (augmentedAircraftData.size() != 0)
+        if (augmentedAircraftData.size() > 0)
         {
             augmentedAircraftsPresent = true; // Augmented aircraft data is present in the system.
 
@@ -476,7 +480,7 @@ void *aircraftDataHandling(void *arg)
         drawAirspace(regularAircraftData, augmentedAircraftData, aircraftGridPositions);
 
         // Print all regular aircraft data, line-by-line.
-        insertBanner("Generic Aicraft Information");
+        insertBanner("Generic Aircraft Information");
         for (size_t i = 0; i < regularAircraftData.size(); i++)
         {
             // Create temporary object for each line of data.
@@ -507,8 +511,24 @@ void *aircraftDataHandling(void *arg)
         }
         // End of the visual display.
 
-        // Make the thread sleep for 5 seconds.
-        this_thread::sleep_for(chrono::seconds(5));
+        // Store the ending time of this task
+        std::chrono::steady_clock::time_point endTime = steady_clock::now();
+
+        // Calculate the execution time of this task
+        std::chrono::duration<double> executionTime = duration_cast<duration<double>>(endTime - startTime);
+
+        // Calculate the maximum allowable time for the task to sleep without missing its deadline
+        double sleepTime = 5.0 - executionTime.count();
+
+        // Make the thread sleep for its maximum allowable sleeping time.
+        if (sleepTime >= 0.0)
+        { // The thread can sleep for the remaining amount of its period.
+            this_thread::sleep_for(chrono::duration<double>(sleepTime));
+        }
+        else
+        { // The thread's execution time has exceeded its period.
+            cerr << "Caution: The data handling thread has missed its deadline..." << endl;
+        }
     }
 
     return nullptr;
@@ -520,6 +540,9 @@ void *violationHandling(void *arg)
 
     while (!*(args->terminateNow))
     {
+        // Store the starting time of this task
+        std::chrono::steady_clock::time_point startTime = steady_clock::now();
+
         // Clear the vectors holding the outdated violation data.
         violations = {};
 
@@ -544,7 +567,7 @@ void *violationHandling(void *arg)
         sem_post(args->sem_data); // The violations thread unlocks the semaphore for all data.
 
         // Check if any violations are present in the airspace.
-        if (violations.size() != 0)
+        if (violations.size() > 0)
         {
             insertBanner("Violations" + getCurrentTimestamp());
 
@@ -558,8 +581,24 @@ void *violationHandling(void *arg)
             cout << '\a';
         }
 
-        // Make the thread sleep for 2 seconds.
-        this_thread::sleep_for(chrono::seconds(2));
+        // Store the ending time of this task
+        std::chrono::steady_clock::time_point endTime = steady_clock::now();
+
+        // Calculate the execution time of this task
+        std::chrono::duration<double> executionTime = duration_cast<duration<double>>(endTime - startTime);
+
+        // Calculate the maximum allowable time for the task to sleep without missing its deadline
+        double sleepTime = 5.0 - executionTime.count();
+
+        // Make the thread sleep for its maximum allowable sleeping time.
+        if (sleepTime >= 0.0)
+        { // The thread can sleep for the remaining amount of its period.
+            this_thread::sleep_for(chrono::duration<double>(sleepTime));
+        }
+        else
+        { // The thread's execution time has exceeded its period.
+            cerr << "Caution: The violation handling thread has missed its deadline..." << endl;
+        }
     }
 
     return nullptr;
@@ -609,8 +648,8 @@ void *terminationHandling(void *arg)
             }
         }
 
-        // Make the thread sleep for 10 seconds.
-        this_thread::sleep_for(chrono::seconds(10));
+        // Make the thread sleep for 5 seconds.
+        this_thread::sleep_for(chrono::seconds(5));
     }
 
     // Check if the subsystem should be terminating.
