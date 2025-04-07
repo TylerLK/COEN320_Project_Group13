@@ -7,6 +7,7 @@
 #include <array>  // Used to store aircraft data.
 #include <tuple>
 #include <ctime>       // Used to create a timestamp.
+#include <chrono>      // Used for a steady_clock
 #include <semaphore.h> // Used to define semaphores for inter-process synchronization.
 #include <fcntl.h>     // Used to open shared memory.
 #include <sys/mman.h>  // Used to map shared memory to an address space.
@@ -515,6 +516,7 @@ void *aircraftDataHandling(void *arg)
 
         // Calculate the execution time of this task
         duration<double> executionTime = duration_cast<duration<double>>(endTime - startTime);
+
         // Calculate the maximum allowable time for the task to sleep without missing its deadline
         double sleepTime = 5.0 - executionTime.count();
 
@@ -538,6 +540,9 @@ void *violationHandling(void *arg)
 
     while (!*(args->terminateNow))
     {
+        // Store the starting time of this task
+        steady_clock::time_point startTime = steady_clock::now();
+
         // Clear the vectors holding the outdated violation data.
         violations = {};
 
@@ -576,8 +581,24 @@ void *violationHandling(void *arg)
             cout << '\a';
         }
 
-        // Make the thread sleep for 2 seconds.
-        this_thread::sleep_for(chrono::seconds(2));
+        // Store the ending time of this task
+        steady_clock::time_point endTime = steady_clock::now();
+
+        // Calculate the execution time of this task
+        duration<double> executionTime = duration_cast<duration<double>>(endTime - startTime);
+
+        // Calculate the maximum allowable time for the task to sleep without missing its deadline
+        double sleepTime = 5.0 - executionTime.count();
+
+        // Make the thread sleep for its maximum allowable sleeping time.
+        if (sleepTime >= 0.0)
+        { // The thread can sleep for the remaining amount of its period.
+            this_thread::sleep_for(chrono::duration<double>(sleepTime));
+        }
+        else
+        { // The thread's execution time has exceeded its period.
+            cerr << "Caution: The violation handling thread has missed its deadline..." << endl;
+        }
     }
 
     return nullptr;
