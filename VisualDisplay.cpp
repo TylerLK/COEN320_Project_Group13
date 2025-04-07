@@ -133,7 +133,7 @@ int main()
     }
 
     // Termination
-    int shm_fd_term = shm_open(SHARED_MEMORY_TERMINATION, O_CREAT | O_RDWR, 0666);
+    int shm_fd_term = shm_open(SHARED_MEMORY_TERMINATION, O_RDWR, 0666);
     if (shm_fd_term == -1)
     {
         perror("shm_open() for termination failed()");
@@ -149,7 +149,7 @@ int main()
     }
 
     // Mapping the shared memory into the Operator's address space.
-    void *shm_ptr_term = mmap(0, SHM_SIZE, PROT_WRITE, MAP_SHARED, shm_fd_term, 0);
+    void *shm_ptr_term = mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd_term, 0);
     if (shm_ptr_term == MAP_FAILED)
     {
         cerr << "Shared Memory Mapping for termination failed..." << endl;
@@ -157,14 +157,14 @@ int main()
     }
 
     // Create the Semaphores that the Operator needs to synchronize with other processes in shared memory.
-    sem_t *sem_data = sem_open(SEMAPHORE_DATA, O_RDONLY, 0666, 1);
+    sem_t *sem_data = sem_open(SEMAPHORE_DATA, 0);
     if (sem_data == SEM_FAILED)
     {
         perror("sem_open() for all data has failed");
         return -1;
     }
 
-    sem_t *sem_term = sem_open(SEMAPHORE_TERMINATION, O_RDWR, 0666, 1);
+    sem_t *sem_term = sem_open(SEMAPHORE_TERMINATION, 0);
     if (sem_term == SEM_FAILED)
     {
         perror("sem_open() for termination has failed");

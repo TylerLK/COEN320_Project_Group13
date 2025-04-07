@@ -182,7 +182,7 @@ public:
         memset(aircraftShmPtr, 0, shm_size);
 
         // Initialize shared memory and semaphore for operator commands
-        shm_fd_logs = shm_open(SHARED_MEMORY_LOGS, O_CREAT | O_RDWR, 0666);
+        shm_fd_logs = shm_open(SHARED_MEMORY_LOGS, O_RDONLY, 0666);
         if (shm_fd_logs == -1)
         {
             perror("shm_open() for logs failed");
@@ -195,47 +195,51 @@ public:
             exit(1);
         }
 
-        shm_ptr_logs = mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd_logs, 0);
+        shm_ptr_logs = mmap(0, SHM_SIZE, PROT_READ, MAP_SHARED, shm_fd_logs, 0);
         if (shm_ptr_logs == MAP_FAILED)
         {
             perror("mmap() for logs failed");
             exit(1);
         }
 
-        sem_logs = sem_open(SEMAPHORE_LOGS, O_RDONLY, 0666, 1);
+        sem_logs = sem_open(SEMAPHORE_LOGS, 0);
         if (sem_logs == SEM_FAILED)
         {
             perror("sem_open() for logs failed");
             exit(1);
         }
 
-        // Initialize shared memory and semaphore for termination signal
-        shm_fd_term = shm_open(SHARED_MEMORY_TERMINATION, O_CREAT | O_RDWR, 0666);
+        // Termination
+        shm_fd_term = shm_open(SHARED_MEMORY_TERMINATION, O_RDWR, 0666);
         if (shm_fd_term == -1)
         {
-            perror("shm_open() for termination failed");
+            perror("shm_open() for termination failed()");
             exit(1);
         }
 
-        if (ftruncate(shm_fd_term, SHM_SIZE) == -1)
+        // Resize the shared memory for termination.
+        int size_term = ftruncate(shm_fd_term, SHM_SIZE);
+        if (size_term == -1)
         {
-            perror("ftruncate() for termination failed");
+            perror("ftruncate() resizing for termination failed"); // This will print the String argument with the errno value appended.
             exit(1);
         }
 
+        // Mapping the shared memory into the Operator's address space.
         shm_ptr_term = mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd_term, 0);
         if (shm_ptr_term == MAP_FAILED)
         {
-            perror("mmap() for termination failed");
+            cerr << "Shared Memory Mapping for termination failed..." << endl;
             exit(1);
         }
 
-        sem_term = sem_open(SEMAPHORE_TERMINATION, O_RDWR, 0666, 1);
+        sem_term = sem_open(SEMAPHORE_TERMINATION, 0);
         if (sem_term == SEM_FAILED)
         {
-            perror("sem_open() for termination failed");
+            perror("sem_open() for termination has failed");
             exit(1);
         }
+
         // Initialize shared memory and semaphore for communication
         shm_fd_comm = shm_open(SHARED_MEMORY_COMMUNICATION, O_CREAT | O_RDWR, 0666);
         if (shm_fd_comm == -1)
@@ -329,28 +333,6 @@ public:
         if (sem_augmentedInfo == SEM_FAILED)
         {
             perror("sem_open() for augmented information failed");
-            exit(1);
-        }
-        int shm_fd_term = shm_open(SHARED_MEMORY_TERMINATION, O_CREAT | O_RDWR, 0666);
-        if (shm_fd_term == -1)
-        {
-            perror("shm_open() for termination failed()");
-            exit(1);
-        }
-
-        // Resize the shared memory for termination.
-        int size_term = ftruncate(shm_fd_term, SHM_SIZE);
-        if (size_term == -1)
-        {
-            perror("ftruncate() resizing for termination failed"); // This will print the String argument with the errno value appended.
-            exit(1);
-        }
-
-        // Mapping the shared memory into the Operator's address space.
-        void *shm_ptr_term = mmap(0, SHM_SIZE, PROT_WRITE, MAP_SHARED, shm_fd_term, 0);
-        if (shm_ptr_term == MAP_FAILED)
-        {
-            cerr << "Shared Memory Mapping for termination failed..." << endl;
             exit(1);
         }
     }
