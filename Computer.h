@@ -203,7 +203,7 @@ public:
             exit(1);
         }
 
-        sem_logs = sem_open(SEMAPHORE_LOGS, O_RDONLY, 0666, 1);
+        sem_logs = sem_open(SEMAPHORE_LOGS, O_CREAT | O_RDWR, 0666, 1);
         if (sem_logs == SEM_FAILED) {
             perror("sem_open() for logs failed");
             exit(1);
