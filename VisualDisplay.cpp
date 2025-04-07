@@ -492,6 +492,8 @@ void *aircraftDataHandling(void *arg)
             {
                 cout << currentAircraftData[j] << " ";
             }
+
+            cout << endl;
         }
 
         // Print all augmented aircraft data, line-by-line.
@@ -508,6 +510,8 @@ void *aircraftDataHandling(void *arg)
                 {
                     cout << currentAircraftData[j] << " ";
                 }
+
+                cout << endl;
             }
         }
         // End of the visual display.
