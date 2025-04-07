@@ -123,7 +123,7 @@ int main()
 
         if (primarySelection == 1)
         { // The operator would like to make a request about an aircraft.
-            bool returnToMain = false;
+            bool returnToMainMenu = false;
             while (!returnToMainMenu)
             {
                 // Prompt the operator to make the secondary selection.
