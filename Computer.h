@@ -42,7 +42,7 @@ const char* AUGMENTED_INFO_MEMORY_NAME ="/AugmentedData";
 
 // Shared memory and semaphore names for operator commands
 const char* SHARED_MEMORY_LOGS = "/shm_logs";
-const char* SEMAPHORE_LOGS = "/logs/semaphore";
+const char* SEMAPHORE_LOGS = "/logs_semaphore";
 
 const char* SHARED_MEMORY_TERMINATION = "/shm_term";
 const char* SEMAPHORE_TERMINATION = "/term_semaphore";
@@ -90,6 +90,7 @@ struct SharedAircraft {
 int shm_fdd;
 SharedAircraft* sharedAircraftList;
 
+//Struct for the Alerts to store in a priority queue
 struct Alert {
     double time;
     string message;
@@ -186,7 +187,7 @@ public:
             exit(1);
         }
 
-        sem_logs = sem_open(SEMAPHORE_LOGS, O_CREAT, 0666, 1);
+        sem_logs = sem_open(SEMAPHORE_LOGS, O_RDONLY, 0666, 1);
         if (sem_logs == SEM_FAILED) {
             perror("sem_open() for logs failed");
             exit(1);
@@ -210,7 +211,7 @@ public:
             exit(1);
         }
 
-        sem_term = sem_open(SEMAPHORE_TERMINATION, O_CREAT, 0666, 1);
+        sem_term = sem_open(SEMAPHORE_TERMINATION, O_RDWR , 0666, 1);
         if (sem_term == SEM_FAILED) {
             perror("sem_open() for termination failed");
             exit(1);
@@ -233,7 +234,7 @@ public:
             exit(1);
         }
 
-        sem_comm = sem_open(SEMAPHORE_COMMUNICATION, O_CREAT, 0666, 1);
+        sem_comm = sem_open(SEMAPHORE_COMMUNICATION, O_RDONLY, 0777, 1);
         if (sem_comm == SEM_FAILED) {
             perror("sem_open() for communication failed");
             exit(1);
@@ -436,6 +437,8 @@ private:
         shm_unlink(AIRCRAFT_SHARED_MEMORY_NAME);
     }
 
+    //Method used to communicate with the Radar Subsystem. Gets the data of all aircrafts
+    //Currently being stored in the system
     void updateFromRadar() {
         cout << "Initializing radar shared memory and semaphore..." << endl;
 
@@ -511,6 +514,7 @@ private:
         close(shm_fdd);
         sem_close(sem_plane);
     }
+    //Checking to terminate the system
     void terminationHandling(sem_t* sem_term, void* shm_ptr_term, atomic<bool>& terminate) {
             while (!terminate) {
                 sem_wait(sem_term);
@@ -563,20 +567,21 @@ private:
 
                     // Parse the command
                     istringstream iss(command);
-                    string timestamp, commandType, aircraftID;
-                    iss >> timestamp >> commandType >> aircraftID;
+                    string commandType, aircraftID;
+                    iss >> commandType >> aircraftID;
 
                     string communicationMessage;
+                    cout << commandType << " is the type of command" <<endl;
 
                     if (commandType == "Speed_Change") {
                         int newSpeedX, newSpeedY, newSpeedZ;
                         iss >> newSpeedX >> newSpeedY >> newSpeedZ;
-                        communicationMessage = "Speed_Change " + aircraftID + " " +
+                        communicationMessage = aircraftID + " " +
                                                to_string(newSpeedX) + " " +
                                                to_string(newSpeedY) + " " +
                                                to_string(newSpeedZ);
 
-                        sendToCommunication(aircraftID, communicationMessage);
+                        sendToCommunication(communicationMessage);
 
                     } else if (commandType == "Augmented_Information") {
                         int id = stoi(aircraftID);
@@ -592,8 +597,8 @@ private:
             }
         }
 
-
-    void sendToCommunication(const string& aircraft, const string& command) {
+    //Method which writes to the communication subsystem when a speed change is made to an aircraft
+    void sendToCommunication(const string& command) {
         sem_wait(sem_comm);
         // Write the message to shared memory
             char* mem = static_cast<char*>(shm_ptr_comm);
@@ -611,6 +616,7 @@ private:
         sem_post(sem_comm);
     }
 
+    //Checks for violations in the system by checking all aircraft distances and trajectories.
     void checkViolationsAndAlerts() {
         while (!terminate) {
             this_thread::sleep_for(chrono::seconds(3)); // Periodic task every 5 seconds
@@ -628,7 +634,7 @@ private:
                         alerts.push({0, "Separation violation detected between " + to_string(a1.getAircraftID()) + " and " + to_string(a2.getAircraftID())});
                         a1.setIsViolation(1);
                         a2.setIsViolation(1);
-                        cout << "violation found. kill kill kill " <<endl;
+                        cout << "violation found. " <<endl;
                     }
                     else{
 
@@ -649,6 +655,7 @@ private:
         }
     }
 
+    //Sends aircraft data to the visual display subsystem.
     void sendAircrafts() {
         sem_wait(dataDisplaySemaphore); // Lock semaphore for aircraft data
 
@@ -679,6 +686,7 @@ private:
         sem_post(dataDisplaySemaphore); // Unlock semaphore for aircraft data
     }
 
+    //Sends alerts to the visual display subsystem.
     void sendAlertsToDataDisplay() {
         sem_wait(dataDisplaySemaphore); // Lock semaphore for data display
 
@@ -709,31 +717,42 @@ private:
         sem_post(dataDisplaySemaphore); // Unlock semaphore for data display
     }
 
+    //Sends requested augmented information to visual display subsystem.
     void augmentInformation(int aircraftID) {
-        sem_wait(sem_augmentedInfo); // Lock semaphore for augmented info
+    	sem_wait(sem_augmentedInfo); // Lock semaphore for augmented info
 
-        lock_guard<mutex> lock(aircraftsMutex); // Protect access to the aircrafts vector
+    	lock_guard<mutex> lock(aircraftsMutex); // Protect access to the aircrafts vector
 
-        // Search for the aircraft in the vector
-        auto it = find_if(aircrafts.begin(), aircrafts.end(), [aircraftID](Aircraft& aircraft) {
-            return aircraft.getAircraftID() == aircraftID;
-        });
+    	bool found = false; // Initialize found to false
+    	Aircraft* targetAircraft = nullptr; // Pointer to the found aircraft
 
-        if (it == aircrafts.end()) {
-            cerr << "Aircraft with ID " << aircraftID << " not found." << endl;
-            sem_post(sem_augmentedInfo); // Unlock semaphore
-            return;
-        }
+    	// Search for the aircraft in the vector
+    	for (auto& aircraft : aircrafts) {
+    	    if (aircraft.getAircraftID() == aircraftID) {
+    	        found = true;
+    	        targetAircraft = &aircraft; // Store a pointer to the found aircraft
+    	        break; // Exit the loop once the ID is found
+    	    }
+    	}
 
-        // Get the aircraft's information
-        Aircraft& aircraft = *it;
-        string data = to_string(aircraft.getAircraftID()) + " " +
-                to_string(aircraft.getPositionX()) + " " +
-                to_string(aircraft.getPositionY()) + " " +
-                to_string(aircraft.getPositionZ()) + " " +
-				to_string(aircraft.getSpeedX()) + " " +
-                to_string(aircraft.getSpeedY()) + " " +
-                to_string(aircraft.getSpeedZ());
+    	if (!found) {
+    	    cerr << "Aircraft with ID " << aircraftID << " not found." << endl;
+    	    sem_post(sem_augmentedInfo); // Unlock semaphore
+    	    return;
+    	}
+
+    	// Get the aircraft's information
+    	Aircraft& aircraft = *targetAircraft; // Dereference the pointer to the found aircraft
+    	string data = to_string(aircraft.getAircraftID()) + " " +
+    	              to_string(aircraft.getPositionX()) + " " +
+    	              to_string(aircraft.getPositionY()) + " " +
+    	              to_string(aircraft.getPositionZ()) + " " +
+    	              to_string(aircraft.getSpeedX()) + " " +
+    	              to_string(aircraft.getSpeedY()) + " " +
+    	              to_string(aircraft.getSpeedZ());
+
+    	// Print the aircraft's information
+    	cout << "Aircraft Data: " << data << endl;
 
         // Write the data to shared memory
         char* mem = static_cast<char*>(shm_ptr_augmentedInfo);
@@ -751,7 +770,7 @@ private:
         sem_post(sem_augmentedInfo); // Unlock semaphore
         cout << "Augmented info for aircraft " << aircraftID << " sent to shared memory." << endl;
     }
-
+    //Checks distance between aircrafts, used when looking for violations to report.
     bool violationCheck(Aircraft* a1, Aircraft* a2) {
         double dx = abs(a1->getPositionX() - a2->getPositionX());
         double dy = abs(a1->getPositionY() - a2->getPositionY());
@@ -760,6 +779,7 @@ private:
         return ((dx < 3000 || dy < 3000) && dz < 1000);
     }
 
+    //Checks for future violations found in the system with the aircraft trajectories.
     tuple<bool, double> collisionCheck(Aircraft* a1, Aircraft* a2) {
         const int maxTime = 120;
         const double horizontalThreshold = 3000.0;
@@ -795,6 +815,7 @@ private:
         return make_tuple(false, -1.0);
     }
 
+    //This and the subsequent method are used in collision calculations.
     bool solveQuadraticFirstTime(double A, double B, double C, double R, double& t_first) {
         C -= R * R;
 
@@ -833,12 +854,7 @@ private:
 
         return true;
     }
-
-    void logMessage(const string& message) {
-        if (logFile.is_open()) {
-            logFile << message << endl;
-        }
-    }
+    //Threads to run aircraft and alert data to send to the Visual display.
     void aircraftDataThread() {
         while (!terminate) {
             this_thread::sleep_for(chrono::seconds(5)); // Update every 5 seconds
@@ -853,6 +869,4 @@ private:
             cout << "Alerts sent to shared memory." << endl;
         }
     }
-
-
 };
