@@ -514,8 +514,7 @@ void *aircraftDataHandling(void *arg)
         steady_clock::time_point endTime = steady_clock::now();
 
         // Calculate the execution time of this task
-        duration<double> executionTime = duration_cast<double<double>>(endTime - startTime);
-
+        duration<double> executionTime = duration_cast<duration<double>>(endTime - startTime);
         // Calculate the maximum allowable time for the task to sleep without missing its deadline
         double sleepTime = 5.0 - executionTime.count();
 
