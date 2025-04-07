@@ -2,10 +2,10 @@
 #include <string>
 #include <sstream>
 #include <cstring>
-#include <cmath>  // Used for round();
-#include <vector> // Used to store aircraft data.
-#include <array>  // Used to store aircraft data.
-#include <tuple>
+#include <cmath>       // Used for round();
+#include <vector>      // Used to store aircraft data.
+#include <array>       // Used to store aircraft data.
+#include <tuple>       // Used to store grid positions.
 #include <ctime>       // Used to create a timestamp.
 #include <chrono>      // Used for a steady_clock
 #include <semaphore.h> // Used to define semaphores for inter-process synchronization.
@@ -14,8 +14,8 @@
 #include <sys/stat.h>  // Used to define file permissions.
 #include <pthread.h>   // Used to create pthreads.
 #include <thread>      // For "this_thread::sleep_for()".
-#include <atomic>
-#include <unistd.h> // Used to allow the threads to sleep; Used for alarm().
+#include <atomic>      // Used to synchronize all threads for termination.
+#include <unistd.h>    // Used to allow the threads to sleep; Used for alarm().
 
 using namespace std;
 
