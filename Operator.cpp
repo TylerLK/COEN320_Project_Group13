@@ -288,7 +288,7 @@ void augmentedInformationRequest(fstream &f, sem_t *sem_logs, void *ptr_logs)
 
     // Log the augmented information request command in "Logs.txt"
     string augmentedInformationLog = getCurrentTimestamp() + " " + augmentedInformation;
-    f << augmentedInformation;
+    f << augmentedInformationLog;
 
     // Write the augmented information request command into shared memory
     const char *command = augmentedInformation.c_str();
